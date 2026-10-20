@@ -1072,12 +1072,11 @@
      9. SCROLL OBSERVER (Gentle fade & slide in)
      ========================================================================== */
   function initScrollAnimation() {
-    if (!('IntersectionObserver' in window)) {
-      document.querySelectorAll('.fade-in-section').forEach(function (el) {
-        el.classList.add('is-visible');
-      });
-      return;
-    }
+    document.querySelectorAll('.fade-in-section').forEach(function (el) {
+      el.classList.add('is-visible');
+    });
+
+    if (!('IntersectionObserver' in window)) return;
 
     const observer = new IntersectionObserver(
       function (entries, obs) {
@@ -1089,8 +1088,8 @@
         });
       },
       {
-        threshold: 0.1,
-        rootMargin: '0px 0px -30px 0px'
+        threshold: 0.01,
+        rootMargin: '50px 0px 50px 0px'
       }
     );
 
@@ -1100,15 +1099,21 @@
   }
 
   /* ==========================================================================
-     INITIALIZATION ON DOM LOAD
+     INITIALIZATION
      ========================================================================== */
-  document.addEventListener('DOMContentLoaded', function () {
-    initLeadForm();
-    initEMICalculator();
-    initFAQ();
-    initNavigation();
-    initTrustMetricsInteraction();
-    initPurposesScrollCarousel();
-    initScrollAnimation();
-  });
+  function initApp() {
+    try { initLeadForm(); } catch (e) { console.error('initLeadForm error:', e); }
+    try { initEMICalculator(); } catch (e) { console.error('initEMICalculator error:', e); }
+    try { initFAQ(); } catch (e) { console.error('initFAQ error:', e); }
+    try { initNavigation(); } catch (e) { console.error('initNavigation error:', e); }
+    try { initTrustMetricsInteraction(); } catch (e) { console.error('initTrustMetricsInteraction error:', e); }
+    try { initPurposesScrollCarousel(); } catch (e) { console.error('initPurposesScrollCarousel error:', e); }
+    try { initScrollAnimation(); } catch (e) { console.error('initScrollAnimation error:', e); }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+  } else {
+    initApp();
+  }
 })();
