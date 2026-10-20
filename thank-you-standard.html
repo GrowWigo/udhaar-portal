@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Application Received - Udhaar Portal</title>
+    <meta name="robots" content="noindex, nofollow" />
+
+    <!-- Google Fonts Barlow 400 to 800 -->
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="/styles.css" />
+
+    <!-- 
+      ==========================================================================
+      GOOGLE ADS CONVERSION TAG PLACEHOLDER (STANDARD LEAD)
+      Replace AW-XXXXXXXXX/STANDARD_CONV_LABEL with your live Google Ads details.
+      Guarded with sessionStorage to ensure it fires exactly once per conversion session.
+      ==========================================================================
+    -->
+    <!-- Global site tag (gtag.js) - Google Ads: AW-XXXXXXXXX -->
+    <!--
+    <script async src="https://www.googletagmanager.com/gtag/js?id=AW-XXXXXXXXX"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'AW-XXXXXXXXX');
+    </script>
+    -->
+    <script>
+      (function () {
+        const STORAGE_KEY = 'udhaar_ads_conv_standard_fired';
+        if (!sessionStorage.getItem(STORAGE_KEY)) {
+          sessionStorage.setItem(STORAGE_KEY, 'true');
+          // Trigger the Google Ads conversion event once:
+          /*
+          if (typeof gtag === 'function') {
+            gtag('event', 'conversion', {
+              'send_to': 'AW-XXXXXXXXX/STANDARD_CONV_LABEL',
+              'value': 1.0,
+              'currency': 'INR'
+            });
+          }
+          */
+          console.info('Google Ads Standard Conversion fired once successfully.');
+        } else {
+          console.info('Conversion already recorded in this session. Skipping duplicate fire.');
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <!-- Header -->
+    <header class="site-header site-header-centered" role="banner">
+      <div class="container header-inner" style="justify-content: center;">
+        <a href="index.html" class="logo" aria-label="Udhaar Portal Homepage">
+          <img
+            src="/images/logo.png"
+            alt="Udhaar Portal"
+            class="header-logo-img"
+            width="220"
+            height="36"
+          />
+        </a>
+      </div>
+    </header>
+
+    <main class="thank-you-wrapper">
+      <div class="container">
+        <div class="thank-you-card standard">
+          <!-- Document Upload Status Badge -->
+          <div class="status-icon-wrapper standard" aria-hidden="true">
+            <svg
+              width="44"
+              height="44"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#2d5a27"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+          </div>
+
+          <h1 class="thank-you-title">Upload Documents for Verification</h1>
+          <p class="thank-you-subtitle">
+            Please upload your documents to expedite your loan processing.
+            <strong>PAN Card</strong> &amp; <strong>Aadhaar Card</strong> are mandatory.
+          </p>
+
+          <!-- Document Submission Section -->
+          <div class="doc-upload-section" id="documentUploadSection">
+            <!-- Live Upload Progress Card -->
+            <div class="doc-progress-card">
+              <div class="doc-progress-info">
+                <div class="doc-progress-text-wrap">
+                  <span class="doc-progress-title">Required Documents Progress</span>
+                  <span class="doc-progress-status" id="docProgressStatus">0 of 2 Uploaded</span>
+                </div>
+                <span class="doc-progress-percent" id="docProgressPercent">0%</span>
+              </div>
+              <div class="doc-progress-bar-track">
+                <div class="doc-progress-bar-fill" id="docProgressBarFill" style="width: 0%;"></div>
+              </div>
+              <p class="doc-progress-hint" id="docProgressHint">Upload PAN Card &amp; Aadhaar Card to activate instant loan verification.</p>
+            </div>
+
+            <form id="docUploadForm" class="doc-upload-form" novalidate>
+              <div class="doc-grid">
+                <!-- Slot 1: PAN Card (Required) -->
+                <div class="doc-card" id="card-pancard">
+                  <div class="doc-card-header">
+                    <div class="doc-title-wrap">
+                      <span class="doc-icon">🪪</span>
+                      <div>
+                        <h4 class="doc-card-title">PAN Card</h4>
+                        <span class="doc-card-sub">Identity Proof</span>
+                      </div>
+                    </div>
+                    <span class="doc-badge badge-required">Required *</span>
+                  </div>
+                  <label class="doc-dropzone" for="file-pancard">
+                    <input
+                      type="file"
+                      id="file-pancard"
+                      name="pancard"
+                      class="doc-file-input"
+                      accept="image/*,.pdf,.doc,.docx"
+                      aria-label="Upload PAN Card (Required)"
+                    />
+                    <div class="dropzone-idle">
+                      <div class="dropzone-btn-pill">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                          <circle cx="12" cy="13" r="4"></circle>
+                        </svg>
+                        <span>Upload / Take Photo</span>
+                      </div>
+                      <span class="dropzone-hint">JPG, PNG, or PDF</span>
+                    </div>
+                    <div class="dropzone-selected" style="display:none;">
+                      <div class="file-info-box">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2d5a27" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        <div class="file-text-wrap">
+                          <span class="file-name">filename.pdf</span>
+                          <span class="file-size">0 KB</span>
+                        </div>
+                      </div>
+                      <button type="button" class="btn-remove-file" title="Remove file" aria-label="Remove PAN Card file">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                      </button>
+                    </div>
+                  </label>
+                  <div class="doc-error-msg" role="alert"></div>
+                </div>
+
+                <!-- Slot 2: Aadhaar Card (Required) -->
+                <div class="doc-card" id="card-aadhaar">
+                  <div class="doc-card-header">
+                    <div class="doc-title-wrap">
+                      <span class="doc-icon">🆔</span>
+                      <div>
+                        <h4 class="doc-card-title">Aadhaar Card</h4>
+                        <span class="doc-card-sub">Address Proof (Front &amp; Back)</span>
+                      </div>
+                    </div>
+                    <span class="doc-badge badge-required">Required *</span>
+                  </div>
+                  <label class="doc-dropzone" for="file-aadhaar">
+                    <input
+                      type="file"
+                      id="file-aadhaar"
+                      name="aadhaar"
+                      class="doc-file-input"
+                      accept="image/*,.pdf,.doc,.docx"
+                      multiple
+                      aria-label="Upload Aadhaar Card (Required)"
+                    />
+                    <div class="dropzone-idle">
+                      <div class="dropzone-btn-pill">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                          <circle cx="12" cy="13" r="4"></circle>
+                        </svg>
+                        <span>Upload / Take Photo</span>
+                      </div>
+                      <span class="dropzone-hint">Front &amp; Back Photo, or PDF</span>
+                    </div>
+                    <div class="dropzone-selected" style="display:none;">
+                      <div class="file-info-box">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2d5a27" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        <div class="file-text-wrap">
+                          <span class="file-name">filename.pdf</span>
+                          <span class="file-size">0 KB</span>
+                        </div>
+                      </div>
+                      <button type="button" class="btn-remove-file" title="Remove file" aria-label="Remove Aadhaar Card file">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                      </button>
+                    </div>
+                  </label>
+                  <div class="doc-error-msg" role="alert"></div>
+                </div>
+
+                <!-- Slot 3: Salary Slip (Optional) -->
+                <div class="doc-card" id="card-salary">
+                  <div class="doc-card-header">
+                    <div class="doc-title-wrap">
+                      <span class="doc-icon">💼</span>
+                      <div>
+                        <h4 class="doc-card-title">Salary Slip</h4>
+                        <span class="doc-card-sub">Latest 1–3 Months</span>
+                      </div>
+                    </div>
+                    <span class="doc-badge badge-optional badge-boost"><span class="badge-opt-prefix">Optional • </span>Boosts Limit</span>
+                  </div>
+                  <label class="doc-dropzone" for="file-salary">
+                    <input
+                      type="file"
+                      id="file-salary"
+                      name="salary_slip"
+                      class="doc-file-input"
+                      accept="image/*,.pdf,.doc,.docx"
+                      multiple
+                      aria-label="Upload Salary Slip (Optional)"
+                    />
+                    <div class="dropzone-idle">
+                      <div class="dropzone-btn-pill">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                          <polyline points="17 8 12 3 7 8"></polyline>
+                          <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <span>Upload Salary Slip</span>
+                      </div>
+                      <span class="dropzone-hint">PDF, Image or Document</span>
+                    </div>
+                    <div class="dropzone-selected" style="display:none;">
+                      <div class="file-info-box">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2d5a27" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        <div class="file-text-wrap">
+                          <span class="file-name">filename.pdf</span>
+                          <span class="file-size">0 KB</span>
+                        </div>
+                      </div>
+                      <button type="button" class="btn-remove-file" title="Remove file" aria-label="Remove Salary Slip file">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                      </button>
+                    </div>
+                  </label>
+                  <div class="doc-error-msg" role="alert"></div>
+                </div>
+
+                <!-- Slot 4: Bank Statement (Optional) -->
+                <div class="doc-card" id="card-bank">
+                  <div class="doc-card-header">
+                    <div class="doc-title-wrap">
+                      <span class="doc-icon">🏦</span>
+                      <div>
+                        <h4 class="doc-card-title">Bank Statement</h4>
+                        <span class="doc-card-sub">Last 3–6 Months</span>
+                      </div>
+                    </div>
+                    <span class="doc-badge badge-optional badge-boost"><span class="badge-opt-prefix">Optional • </span>Faster Disbursal</span>
+                  </div>
+                  <label class="doc-dropzone" for="file-bank">
+                    <input
+                      type="file"
+                      id="file-bank"
+                      name="bank_statement"
+                      class="doc-file-input"
+                      accept="image/*,.pdf,.doc,.docx"
+                      aria-label="Upload Bank Statement (Optional)"
+                    />
+                    <div class="dropzone-idle">
+                      <div class="dropzone-btn-pill">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                          <polyline points="17 8 12 3 7 8"></polyline>
+                          <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <span>Upload Bank Statement</span>
+                      </div>
+                      <span class="dropzone-hint">PDF or e-Statement</span>
+                    </div>
+                    <div class="dropzone-selected" style="display:none;">
+                      <div class="file-info-box">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2d5a27" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        <div class="file-text-wrap">
+                          <span class="file-name">filename.pdf</span>
+                          <span class="file-size">0 KB</span>
+                        </div>
+                      </div>
+                      <button type="button" class="btn-remove-file" title="Remove file" aria-label="Remove Bank Statement file">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                      </button>
+                    </div>
+                  </label>
+                  <div class="doc-error-msg" role="alert"></div>
+                </div>
+              </div>
+
+              <!-- Submit button -->
+              <div class="doc-submit-wrap">
+                <button type="submit" id="btnDocSubmit" class="doc-submit-btn bank-submit-btn">
+                  <span class="btn-text">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                    <span>Securely Submit to Underwriting Desk</span>
+                  </span>
+                  <span class="btn-loader" style="display:none;">
+                    <span class="spinner"></span> Transmitting Encrypted Documents...
+                  </span>
+                </button>
+              </div>
+
+              <!-- Success Banner (Hidden by default, displayed via JS upon submission) -->
+              <div id="docSuccessBanner" class="doc-success-banner" style="display:none;" role="status">
+                <div class="doc-success-icon">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </div>
+                <div class="doc-success-content">
+                  <h4 class="doc-success-title">Documents Received Successfully!</h4>
+                  <p class="doc-success-desc">
+                    Your documents have been securely submitted to our underwriting verification desk. Our loan officer will contact you shortly via phone or WhatsApp.
+                  </p>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Supabase Data Client -->
+    <script src="/supabase-client.js"></script>
+    <script src="/doc-upload.js"></script>
+  </body>
+</html>

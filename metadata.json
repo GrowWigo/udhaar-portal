@@ -1,0 +1,6 @@
+{
+  "name": "Udhaar Portal - Instant Personal Loans",
+  "description": "Mobile-first instant personal loan portal matching udhaarportal.com with rapid eligibility checking and paperless loan flow.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
