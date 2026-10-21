@@ -369,7 +369,7 @@
         if (!val) {
           setFieldState('group-pan', false, 'Please enter your 10-character PAN number.');
         } else if (!validatePAN(val)) {
-          setFieldState('group-pan', false, 'Format error: 3 letters, P, 1 letter, 4 digits, 1 letter (e.g. ABCDE1234F).');
+          setFieldState('group-pan', false, 'Format error: 3 letters, P, 1 letter, 4 digits, 1 letter (e.g. ABCPK1234A).');
         } else {
           setFieldState('group-pan', true);
         }
@@ -455,7 +455,7 @@
 
       const panVal = panInput ? panInput.value.trim().toUpperCase() : '';
       if (!validatePAN(panVal)) {
-        setFieldState('group-pan', false, 'Please provide a valid 10-character PAN (e.g., ABCDE1234F).');
+        setFieldState('group-pan', false, 'Please provide a valid 10-character PAN (e.g., ABCPK1234A).');
         hasErrors = true;
         if (!firstErrorEl) firstErrorEl = panInput;
       } else {
