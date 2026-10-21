@@ -163,18 +163,7 @@
         '4': '₹1,00,000 or more'
       };
 
-      // Human-readable labels for CIBIL Score
-      const CIBIL_LABEL_MAP = {
-        '0': 'Below 500',
-        '1': '500 to 599',
-        '2': '600 to 699',
-        '3': '700 to 749',
-        '4': '750 or more',
-        'unknown': "Don't know"
-      };
-
       const readableSalary = SALARY_LABEL_MAP[payload.monthlySalary] || payload.monthlySalary || '';
-      const readableCibil = CIBIL_LABEL_MAP[payload.cibilScore] || payload.cibilScore || '';
 
       const leadRecord = {
         lead_id: leadId,
@@ -185,7 +174,7 @@
         mobile_number: payload.mobileNumber || '',
         email: payload.email || '',
         monthly_salary: readableSalary,
-        cibil_score: readableCibil,
+        employment_type: payload.employmentType || '',
         pan_number: payload.panNumber || '',
         city: payload.city || '',
         form_details: {
@@ -194,7 +183,7 @@
           mobileNumber: payload.mobileNumber,
           email: payload.email,
           monthlySalary: readableSalary,
-          cibilScore: readableCibil,
+          employmentType: payload.employmentType || '',
           panNumber: payload.panNumber,
           city: payload.city,
           submittedAt: payload.submittedAt
@@ -207,7 +196,9 @@
         utm_content: tracking.utm_content || '',
         gclid: tracking.gclid || '',
         documents: [],
-        status: 'New Lead'
+        lead_status: 'New Lead',
+        status: 'New Lead',
+        document_status: 'Pending'
       };
 
       // Persist in Supabase
@@ -228,12 +219,9 @@
       // Qualification rules (checks raw selection)
       const salaryVal = Number(payload.monthlySalary);
       const isSalaryQualified = !isNaN(salaryVal) && salaryVal >= 2;
-      const isCibilQualified =
-        payload.cibilScore !== 'unknown' &&
-        !isNaN(Number(payload.cibilScore)) &&
-        Number(payload.cibilScore) >= 1;
+      const isEmploymentQualified = payload.employmentType === 'Salaried';
 
-      const isQualified = isSalaryQualified && isCibilQualified;
+      const isQualified = isSalaryQualified && isEmploymentQualified;
       const targetPage = isQualified ? 'thank-you-qualified.html' : 'thank-you-standard.html';
 
       // Redirect with lead_id parameter
@@ -261,7 +249,7 @@
     const mobileInput = document.getElementById('mobile');
     const emailInput = document.getElementById('email');
     const salarySelect = document.getElementById('monthlySalary');
-    const cibilSelect = document.getElementById('cibilScore');
+    const employmentSelect = document.getElementById('employmentType');
     const panInput = document.getElementById('panNumber');
     const citySelect = document.getElementById('city');
     const consentCheck = document.getElementById('consentCheckbox');
@@ -351,10 +339,10 @@
       });
     }
 
-    if (cibilSelect) {
-      cibilSelect.addEventListener('change', function () {
-        if (cibilSelect.value !== '') setFieldState('group-cibil', true);
-        else setFieldState('group-cibil', false, 'Please select your CIBIL score bracket.');
+    if (employmentSelect) {
+      employmentSelect.addEventListener('change', function () {
+        if (employmentSelect.value !== '') setFieldState('group-employment', true);
+        else setFieldState('group-employment', false, 'Please select your employment type.');
       });
     }
 
@@ -447,13 +435,13 @@
         setFieldState('group-salary', true);
       }
 
-      const cibilVal = cibilSelect ? cibilSelect.value : '';
-      if (cibilVal === '') {
-        setFieldState('group-cibil', false, 'Please select your CIBIL score bracket.');
+      const employmentVal = employmentSelect ? employmentSelect.value : '';
+      if (employmentVal === '') {
+        setFieldState('group-employment', false, 'Please select your employment type.');
         hasErrors = true;
-        if (!firstErrorEl) firstErrorEl = cibilSelect;
+        if (!firstErrorEl) firstErrorEl = employmentSelect;
       } else {
-        setFieldState('group-cibil', true);
+        setFieldState('group-employment', true);
       }
 
       const panVal = panInput ? panInput.value.trim().toUpperCase() : '';
@@ -495,7 +483,7 @@
         mobileNumber: mobileVal,
         email: emailVal,
         monthlySalary: salaryVal,
-        cibilScore: cibilVal,
+        employmentType: employmentVal,
         panNumber: panVal,
         city: cityVal,
         consentGranted: true,

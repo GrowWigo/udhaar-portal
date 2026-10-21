@@ -53,17 +53,7 @@ async function saveLeadToSupabase(leadData) {
       '4': '₹1,00,000 or more'
     };
 
-    const CIBIL_LABEL_MAP = {
-      '0': 'Below 500',
-      '1': '500 to 599',
-      '2': '600 to 699',
-      '3': '700 to 749',
-      '4': '750 or more',
-      'unknown': "Don't know"
-    };
-
     const salaryFormatted = SALARY_LABEL_MAP[leadData.monthly_salary] || leadData.monthly_salary || '';
-    const cibilFormatted = CIBIL_LABEL_MAP[leadData.cibil_score] || leadData.cibil_score || '';
 
     const payload = {
       lead_id: leadId,
@@ -74,7 +64,7 @@ async function saveLeadToSupabase(leadData) {
       mobile_number: leadData.mobile_number || '',
       email: leadData.email || '',
       monthly_salary: salaryFormatted,
-      cibil_score: cibilFormatted,
+      employment_type: leadData.employment_type || '',
       pan_number: leadData.pan_number || '',
       city: leadData.city || '',
       form_details: leadData.form_details || {},
@@ -86,6 +76,7 @@ async function saveLeadToSupabase(leadData) {
       utm_content: leadData.utm_content || '',
       gclid: leadData.gclid || '',
       documents: leadData.documents || [],
+      lead_status: 'New Lead',
       status: 'New Lead',
       document_status: 'Pending'
     };
@@ -107,14 +98,31 @@ async function saveLeadToSupabase(leadData) {
 
     if (!response.ok) {
       const errText = await response.text();
-      // If document_status column is not yet in Supabase table, retry without it
+      let retryNeeded = false;
+      if (errText.includes('employment_type')) {
+        delete payload.employment_type;
+        retryNeeded = true;
+      }
       if (errText.includes('document_status')) {
         delete payload.document_status;
+        retryNeeded = true;
+      }
+      if (errText.includes('lead_status')) {
+        delete payload.lead_status;
+        retryNeeded = true;
+      }
+
+      if (retryNeeded) {
         response = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/leads`, {
           method: 'POST',
           headers: getHeaders({ 'Prefer': 'return=representation' }),
           body: JSON.stringify(payload)
         });
+        if (!response.ok) {
+          const secondErr = await response.text();
+          console.error('Supabase Lead Retry Insert Error:', response.status, secondErr);
+          return { success: false, lead_id: leadId, error: secondErr };
+        }
       } else {
         console.error('Supabase Lead Insert Error:', response.status, errText);
         return { success: false, lead_id: leadId, error: errText };

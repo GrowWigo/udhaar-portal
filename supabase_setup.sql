@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS public.leads (
     mobile_number TEXT,
     email TEXT,
     monthly_salary TEXT,
+    employment_type TEXT,
     cibil_score TEXT,
     pan_number TEXT,
     city TEXT,
@@ -46,7 +47,8 @@ CREATE TABLE IF NOT EXISTS public.leads (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- For Existing Tables: Add document_status and lead_status columns if missing
+-- For Existing Tables: Add missing columns if they do not exist
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS employment_type TEXT;
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS lead_status TEXT DEFAULT 'New Lead';
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS document_status TEXT DEFAULT 'Pending';
 
