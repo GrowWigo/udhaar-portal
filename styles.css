@@ -836,17 +836,21 @@ footer {
 .checkbox-label {
   display: flex;
   align-items: flex-start;
-  gap: 7px;
+  gap: 8px;
   cursor: pointer;
   font-size: 10.5px;
   color: #475569;
   line-height: 1.35;
   user-select: none;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
 }
 
 .checkbox-label input[type="checkbox"] {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   margin-top: 1px;
   accent-color: var(--color-mid-green);
   flex-shrink: 0;
@@ -861,6 +865,38 @@ footer {
 
 .checkbox-label a:hover {
   color: var(--color-bright-green);
+}
+
+/* Consent Checkbox Error State */
+.consent-group.has-error .checkbox-label {
+  background-color: #fef2f2;
+  border: 1.5px solid var(--color-fraud-red);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+}
+
+.consent-group.has-error .checkbox-label input[type="checkbox"] {
+  outline: 2px solid var(--color-fraud-red);
+  outline-offset: 1px;
+}
+
+.consent-group.has-error .error-message {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-fraud-red);
+  margin-top: 4px;
+  padding-left: 8px;
+}
+
+.consent-group.shake-error {
+  animation: shakeConsent 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes shakeConsent {
+  10%, 90% { transform: translate3d(-2px, 0, 0); }
+  20%, 80% { transform: translate3d(3px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-5px, 0, 0); }
+  40%, 60% { transform: translate3d(5px, 0, 0); }
 }
 
 /* Submit button & Loading State */

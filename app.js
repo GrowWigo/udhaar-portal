@@ -125,12 +125,18 @@
 
     if (isValid) {
       group.classList.remove('has-error');
+      group.classList.remove('shake-error');
       group.classList.add('is-valid');
       if (inputEl) inputEl.setAttribute('aria-invalid', 'false');
       if (errorEl) errorEl.textContent = '';
     } else {
       group.classList.remove('is-valid');
       group.classList.add('has-error');
+      if (groupId === 'group-consent') {
+        group.classList.remove('shake-error');
+        void group.offsetWidth; // Force CSS reflow to re-trigger animation
+        group.classList.add('shake-error');
+      }
       if (inputEl) inputEl.setAttribute('aria-invalid', 'true');
       if (errorEl && message) errorEl.textContent = message;
     }
@@ -379,8 +385,11 @@
 
     if (consentCheck) {
       consentCheck.addEventListener('change', function () {
-        if (consentCheck.checked) setFieldState('group-consent', true);
-        else setFieldState('group-consent', false, 'You must authorize data processing to check eligibility.');
+        if (consentCheck.checked) {
+          setFieldState('group-consent', true);
+        } else {
+          setFieldState('group-consent', false, 'Please tick this checkbox to agree to the terms and privacy policy.');
+        }
       });
     }
 
@@ -463,7 +472,7 @@
       }
 
       if (!consentCheck || !consentCheck.checked) {
-        setFieldState('group-consent', false, 'You must agree to the terms and privacy policy.');
+        setFieldState('group-consent', false, 'Please tick this checkbox to agree to the terms and privacy policy.');
         hasErrors = true;
         if (!firstErrorEl) firstErrorEl = consentCheck;
       } else {
@@ -471,8 +480,13 @@
       }
 
       if (hasErrors) {
-        if (firstErrorEl && typeof firstErrorEl.focus === 'function') {
-          firstErrorEl.focus();
+        if (firstErrorEl) {
+          if (typeof firstErrorEl.scrollIntoView === 'function') {
+            firstErrorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+          if (typeof firstErrorEl.focus === 'function') {
+            firstErrorEl.focus();
+          }
         }
         return;
       }
