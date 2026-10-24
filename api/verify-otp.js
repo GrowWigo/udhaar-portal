@@ -1,6 +1,43 @@
 // Vercel Serverless Function: Verify OTP
 import crypto from 'crypto';
 
+// In-memory store for wrong OTP attempts (per IP + Mobile)
+const wrongAttemptsMap = new Map();
+
+function checkWrongAttemptsLimit(key, maxLimit = 3, windowMs = 60000) {
+  const now = Date.now();
+  const timestamps = wrongAttemptsMap.get(key) || [];
+  const recent = timestamps.filter((t) => now - t < windowMs);
+
+  if (recent.length >= maxLimit) {
+    const oldest = recent[0];
+    const retryAfter = Math.max(1, Math.ceil((windowMs - (now - oldest)) / 1000));
+    return {
+      allowed: false,
+      retryAfter,
+      attempts: recent.length,
+    };
+  }
+
+  return {
+    allowed: true,
+    remaining: maxLimit - recent.length,
+  };
+}
+
+function recordWrongAttempt(key, windowMs = 60000) {
+  const now = Date.now();
+  const timestamps = wrongAttemptsMap.get(key) || [];
+  const recent = timestamps.filter((t) => now - t < windowMs);
+  recent.push(now);
+  wrongAttemptsMap.set(key, recent);
+  return Math.max(0, 3 - recent.length);
+}
+
+function clearWrongAttempts(key) {
+  wrongAttemptsMap.delete(key);
+}
+
 export default async function handler(req, res) {
   // CORS Headers
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -47,6 +84,24 @@ export default async function handler(req, res) {
       });
     }
 
+    // Rate Limiting on Wrong Attempts: Max 3 wrong attempts per minute per person
+    const clientIp =
+      req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+      req.headers['x-real-ip'] ||
+      req.socket?.remoteAddress ||
+      'unknown-ip';
+    const attemptKey = `${clientIp}_${cleanMobile}`;
+
+    const limitCheck = checkWrongAttemptsLimit(attemptKey, 3, 60000);
+    if (!limitCheck.allowed) {
+      return res.status(429).json({
+        status: 'error',
+        code: 'TOO_MANY_WRONG_ATTEMPTS',
+        message: `Security limit reached: Maximum 3 wrong OTP attempts allowed per minute. Please wait ${limitCheck.retryAfter} seconds before trying again.`,
+        retryAfter: limitCheck.retryAfter,
+      });
+    }
+
     const [expiresAtStr, signature] = token.split('.');
     const expiresAt = parseInt(expiresAtStr, 10);
 
@@ -73,14 +128,20 @@ export default async function handler(req, res) {
     );
 
     if (!isValid) {
+      const remainingAttempts = recordWrongAttempt(attemptKey, 60000);
       return res.status(400).json({
         status: 'error',
         code: 'INVALID_OTP',
-        message: 'Incorrect OTP. Please enter the valid 6-digit code or request a new one.',
+        message: remainingAttempts > 0
+          ? `Incorrect OTP. You have ${remainingAttempts} attempt(s) remaining in this minute.`
+          : 'Security limit reached: You have entered incorrect OTP 3 times. Please wait 60 seconds.',
+        remainingAttempts,
       });
     }
 
-    // Success! Generate proof token
+    // Success! Clear wrong attempts
+    clearWrongAttempts(attemptKey);
+
     const verifiedAt = Date.now();
     const verificationProof = crypto
       .createHmac('sha256', secret)

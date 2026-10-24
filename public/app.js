@@ -249,257 +249,239 @@
     const form = document.getElementById('leadForm');
     if (!form) return;
 
-    // Step containers & pills
-    const step1Container = document.getElementById('step1Container');
-    const step2Container = document.getElementById('step2Container');
-    const stepPill1 = document.getElementById('stepPill1');
-    const stepPill2 = document.getElementById('stepPill2');
-
-    // Step 1: Mobile & OTP verification elements
-    const mobileInput = document.getElementById('mobile');
-    const btnSendOtp = document.getElementById('btnSendOtp');
-    const otpVerificationBox = document.getElementById('otpVerificationBox');
-    const otpSentPhone = document.getElementById('otpSentPhone');
-    const btnEditMobile = document.getElementById('btnEditMobile');
-    const otpCodeInput = document.getElementById('otpCode');
-    const otpErrorMessage = document.getElementById('otpErrorMessage');
-    const otpStatusMessage = document.getElementById('otpStatusMessage');
-    const btnVerifyOtp = document.getElementById('btnVerifyOtp');
-    const resendTimerText = document.getElementById('resendTimerText');
-    const resendCountdown = document.getElementById('resendCountdown');
-    const btnResendOtp = document.getElementById('btnResendOtp');
-
-    // Step 2 elements
-    const displayVerifiedPhone = document.getElementById('displayVerifiedPhone');
-    const btnChangeVerifiedPhone = document.getElementById('btnChangeVerifiedPhone');
+    // Form field inputs
     const firstNameInput = document.getElementById('firstName');
     const lastNameInput = document.getElementById('lastName');
+    const mobileInput = document.getElementById('mobile');
     const emailInput = document.getElementById('email');
     const salaryInput = document.getElementById('monthlySalary');
     const employmentSelect = document.getElementById('employmentType');
     const panInput = document.getElementById('panNumber');
     const citySelect = document.getElementById('city');
     const consentCheck = document.getElementById('consentCheckbox');
+    const submitBtn = document.getElementById('submitBtn');
 
-    // OTP State Variables
-    let isMobileOtpVerified = false;
-    let verifiedMobile = '';
+    // OTP Modal elements
+    const otpModalOverlay = document.getElementById('otpModalOverlay');
+    const modalBtnClose = document.getElementById('modalBtnClose');
+    const modalPhoneDisplay = document.getElementById('modalPhoneDisplay');
+    const modalOtpInput = document.getElementById('modalOtpInput');
+    const modalOtpStatus = document.getElementById('modalOtpStatus');
+    const modalBtnVerify = document.getElementById('modalBtnVerify');
+    const modalResendTimerText = document.getElementById('modalResendTimerText');
+    const modalResendCountdown = document.getElementById('modalResendCountdown');
+    const modalBtnResend = document.getElementById('modalBtnResend');
+
+    // State Variables
+    let pendingFormPayload = null;
     let currentOtpToken = '';
     let resendTimer = null;
-    let rateLimitCooldownTimer = null;
+    let wrongAttemptsTimer = null;
 
     // ==========================================
-    // RATE LIMITING (Anti-hacker protection: Max 4 requests/min)
+    // RATE LIMITING CONFIGURATION
+    // 1. Resend: Max 3 times per minute
+    // 2. Wrong OTP: Max 3 times per minute
     // ==========================================
-    const OTP_RATE_STORAGE_KEY = 'udhaar_otp_req_timestamps';
-    const OTP_MAX_REQUESTS_PER_MIN = 4;
-    const OTP_WINDOW_MS = 60000;
+    const OTP_RESEND_STORAGE_KEY = 'udhaar_otp_resend_times';
+    const OTP_WRONG_ATTEMPTS_STORAGE_KEY = 'udhaar_otp_wrong_times';
+    const RATE_WINDOW_MS = 60000;
+    const MAX_RESEND_PER_MIN = 3;
+    const MAX_WRONG_ATTEMPTS_PER_MIN = 3;
 
-    function getOtpTimestamps() {
+    function getWindowTimestamps(key) {
       try {
-        const raw = sessionStorage.getItem(OTP_RATE_STORAGE_KEY);
+        const raw = sessionStorage.getItem(key);
         if (!raw) return [];
         const arr = JSON.parse(raw);
         const now = Date.now();
-        return arr.filter((t) => now - t < OTP_WINDOW_MS);
+        return arr.filter((t) => now - t < RATE_WINDOW_MS);
       } catch (e) {
         return [];
       }
     }
 
-    function recordOtpTimestamp() {
-      const timestamps = getOtpTimestamps();
-      timestamps.push(Date.now());
+    function addTimestamp(key) {
+      const list = getWindowTimestamps(key);
+      list.push(Date.now());
       try {
-        sessionStorage.setItem(OTP_RATE_STORAGE_KEY, JSON.stringify(timestamps));
+        sessionStorage.setItem(key, JSON.stringify(list));
       } catch (e) {}
     }
 
-    function checkClientRateLimit() {
-      const timestamps = getOtpTimestamps();
-      if (timestamps.length >= OTP_MAX_REQUESTS_PER_MIN) {
-        const oldest = timestamps[0];
-        const waitMs = OTP_WINDOW_MS - (Date.now() - oldest);
-        const waitSeconds = Math.max(1, Math.ceil(waitMs / 1000));
-        return { allowed: false, waitSeconds };
+    function checkResendRateLimit() {
+      const list = getWindowTimestamps(OTP_RESEND_STORAGE_KEY);
+      if (list.length >= MAX_RESEND_PER_MIN) {
+        const oldest = list[0];
+        const remainingSeconds = Math.max(1, Math.ceil((RATE_WINDOW_MS - (Date.now() - oldest)) / 1000));
+        return { allowed: false, remainingSeconds };
       }
-      return { allowed: true, remaining: OTP_MAX_REQUESTS_PER_MIN - timestamps.length };
+      return { allowed: true, remainingAttempts: MAX_RESEND_PER_MIN - list.length };
     }
 
-    function showOtpStatus(msg, type = 'error') {
-      if (!otpStatusMessage) return;
-      otpStatusMessage.className = `otp-status-message ${type}`;
-      otpStatusMessage.innerHTML = msg;
-      otpStatusMessage.style.display = 'block';
+    function checkWrongAttemptsLimit() {
+      const list = getWindowTimestamps(OTP_WRONG_ATTEMPTS_STORAGE_KEY);
+      if (list.length >= MAX_WRONG_ATTEMPTS_PER_MIN) {
+        const oldest = list[0];
+        const remainingSeconds = Math.max(1, Math.ceil((RATE_WINDOW_MS - (Date.now() - oldest)) / 1000));
+        return { allowed: false, remainingSeconds };
+      }
+      return { allowed: true, remainingAttempts: MAX_WRONG_ATTEMPTS_PER_MIN - list.length };
     }
 
-    function clearOtpStatus() {
-      if (!otpStatusMessage) return;
-      otpStatusMessage.innerHTML = '';
-      otpStatusMessage.style.display = 'none';
+    function showModalStatus(msg, type = 'error') {
+      if (!modalOtpStatus) return;
+      modalOtpStatus.className = `otp-modal-status ${type}`;
+      modalOtpStatus.innerHTML = msg;
     }
 
-    function triggerRateLimitLock(waitSeconds) {
-      if (btnSendOtp) btnSendOtp.setAttribute('disabled', 'disabled');
-      if (btnResendOtp) btnResendOtp.setAttribute('disabled', 'disabled');
+    function clearModalStatus() {
+      if (!modalOtpStatus) return;
+      modalOtpStatus.className = 'otp-modal-status';
+      modalOtpStatus.innerHTML = '';
+    }
 
-      showOtpStatus(
-        `⚠️ <strong>Security Limit:</strong> Hacker attack protection ke liye 1 minute mein maximum 4 OTP requests allowed hain. Kripya <strong id="rlSec">${waitSeconds}</strong>s wait karein.`,
+    function closeOtpModal() {
+      if (otpModalOverlay) otpModalOverlay.classList.remove('active');
+      if (submitBtn) {
+        submitBtn.classList.remove('is-loading');
+        submitBtn.removeAttribute('disabled');
+      }
+      clearModalStatus();
+    }
+
+    // Cooldown lock when wrong OTP limit (3 attempts) is hit
+    function triggerWrongAttemptsLock(seconds) {
+      if (modalOtpInput) modalOtpInput.setAttribute('disabled', 'disabled');
+      if (modalBtnVerify) modalBtnVerify.setAttribute('disabled', 'disabled');
+
+      showModalStatus(
+        `⚠️ <strong>Security Limit:</strong> 1 minute mein maximum 3 baar galat OTP try kar sakte hain. Kripya <strong id="wrongSec">${seconds}</strong>s wait karein.`,
         'warning'
       );
 
-      if (rateLimitCooldownTimer) clearInterval(rateLimitCooldownTimer);
-      let remaining = waitSeconds;
-      rateLimitCooldownTimer = setInterval(function () {
-        remaining--;
-        const secSpan = document.getElementById('rlSec');
-        if (secSpan) secSpan.textContent = remaining;
-        if (remaining <= 0) {
-          clearInterval(rateLimitCooldownTimer);
-          rateLimitCooldownTimer = null;
-          clearOtpStatus();
-          if (btnSendOtp) btnSendOtp.removeAttribute('disabled');
-          if (btnResendOtp) btnResendOtp.removeAttribute('disabled');
+      if (wrongAttemptsTimer) clearInterval(wrongAttemptsTimer);
+      let count = seconds;
+      wrongAttemptsTimer = setInterval(function () {
+        count--;
+        const span = document.getElementById('wrongSec');
+        if (span) span.textContent = count;
+        if (count <= 0) {
+          clearInterval(wrongAttemptsTimer);
+          wrongAttemptsTimer = null;
+          clearModalStatus();
+          if (modalOtpInput) {
+            modalOtpInput.removeAttribute('disabled');
+            modalOtpInput.focus();
+          }
+          if (modalBtnVerify) modalBtnVerify.removeAttribute('disabled');
         }
       }, 1000);
     }
 
-    function startResendCooldown(seconds = 30) {
+    // Cooldown timer for resend OTP (30s individual, or locked if 3/min reached)
+    function startModalResendTimer(seconds = 30) {
       if (resendTimer) clearInterval(resendTimer);
-      if (btnResendOtp) btnResendOtp.style.display = 'none';
-      if (resendTimerText) resendTimerText.style.display = 'inline';
+      if (modalBtnResend) modalBtnResend.style.display = 'none';
+      if (modalResendTimerText) modalResendTimerText.style.display = 'inline';
       let count = seconds;
-      if (resendCountdown) resendCountdown.textContent = count;
+      if (modalResendCountdown) modalResendCountdown.textContent = count;
 
       resendTimer = setInterval(function () {
         count--;
-        if (resendCountdown) resendCountdown.textContent = count;
+        if (modalResendCountdown) modalResendCountdown.textContent = count;
         if (count <= 0) {
           clearInterval(resendTimer);
           resendTimer = null;
-          const limit = checkClientRateLimit();
+          const limit = checkResendRateLimit();
           if (limit.allowed) {
-            if (resendTimerText) resendTimerText.style.display = 'none';
-            if (btnResendOtp) {
-              btnResendOtp.style.display = 'inline';
-              btnResendOtp.removeAttribute('disabled');
+            if (modalResendTimerText) modalResendTimerText.style.display = 'none';
+            if (modalBtnResend) {
+              modalBtnResend.style.display = 'inline';
+              modalBtnResend.removeAttribute('disabled');
             }
           } else {
-            if (resendTimerText) {
-              resendTimerText.style.display = 'inline';
-              resendTimerText.innerHTML = `⚠️ Limit: Wait <strong>${limit.waitSeconds}</strong>s to resend`;
+            if (modalResendTimerText) {
+              modalResendTimerText.style.display = 'inline';
+              modalResendTimerText.innerHTML = `⚠️ Wait <strong>${limit.remainingSeconds}</strong>s to resend (max 3/min)`;
             }
           }
         }
       }, 1000);
     }
 
-    // ==========================================
-    // SEND OTP HANDLER
-    // ==========================================
-    async function handleSendOtp() {
-      clearOtpStatus();
-      if (otpErrorMessage) otpErrorMessage.textContent = '';
-
-      const rawMobile = mobileInput ? mobileInput.value.trim() : '';
-      const clean = sanitizeMobile(rawMobile);
-
-      if (!clean || clean.length !== 10 || !validateMobile(clean)) {
-        setFieldState('group-mobile', false, 'Enter a valid 10-digit mobile number starting with 6, 7, 8 or 9.');
-        if (mobileInput) mobileInput.focus();
-        return;
-      }
-
-      setFieldState('group-mobile', true);
-
-      // Check client rate limit (max 4 requests per min)
-      const limit = checkClientRateLimit();
-      if (!limit.allowed) {
-        triggerRateLimitLock(limit.waitSeconds);
-        return;
-      }
-
-      const activeBtn = (btnSendOtp && btnSendOtp.style.display !== 'none') ? btnSendOtp : btnResendOtp;
-      if (activeBtn) {
-        activeBtn.classList.add('is-loading');
-        activeBtn.setAttribute('disabled', 'disabled');
+    // Send OTP via API
+    async function requestOtp(mobile) {
+      const resendCheck = checkResendRateLimit();
+      if (!resendCheck.allowed) {
+        showModalStatus(
+          `⚠️ <strong>Security Limit:</strong> 1 minute mein maximum 3 baar OTP request/resend allow hai. Kripya ${resendCheck.remainingSeconds}s wait karein.`,
+          'warning'
+        );
+        return false;
       }
 
       try {
         const resp = await fetch('/api/send-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mobileNumber: clean }),
+          body: JSON.stringify({ mobileNumber: mobile }),
         });
 
         const data = await resp.json();
 
-        if (activeBtn) {
-          activeBtn.classList.remove('is-loading');
-          activeBtn.removeAttribute('disabled');
-        }
-
         if (resp.status === 429) {
-          triggerRateLimitLock(data.retryAfter || 60);
-          return;
+          showModalStatus(data.message || 'Security limit: Maximum 3 OTP requests per minute allowed.', 'warning');
+          return false;
         }
 
         if (!resp.ok || data.status !== 'success') {
-          showOtpStatus(data.message || 'OTP send karne mein issue aaya. Please dubara try karein.', 'error');
-          return;
+          showModalStatus(data.message || 'OTP send karne mein issue aaya. Please dobara try karein.', 'error');
+          return false;
         }
 
-        // Record timestamp for rate limit tracking
-        recordOtpTimestamp();
+        // Record timestamp for 3/min limit
+        addTimestamp(OTP_RESEND_STORAGE_KEY);
         currentOtpToken = data.token;
 
-        // Show OTP box
-        if (btnSendOtp) btnSendOtp.style.display = 'none';
-        if (otpVerificationBox) otpVerificationBox.style.display = 'block';
-        if (otpSentPhone) otpSentPhone.textContent = `+91 ${clean}`;
-
-        let successMsg = `OTP sent to +91 ${clean}.`;
+        let statusText = `OTP successfully sent to +91 ${mobile}.`;
         if (data.demoMode && data.previewOtp) {
-          successMsg += ` <br><strong style="color: #047857;">[Test OTP: ${data.previewOtp}]</strong>`;
+          statusText += ` <br><strong style="color: #047857;">[Test OTP: ${data.previewOtp}]</strong>`;
         }
-        showOtpStatus(successMsg, 'success');
+        showModalStatus(statusText, 'success');
 
-        startResendCooldown(30);
-
-        if (otpCodeInput) {
-          otpCodeInput.value = '';
-          otpCodeInput.focus();
-        }
+        startModalResendTimer(30);
+        return true;
       } catch (err) {
-        console.error('Send OTP network error:', err);
-        if (activeBtn) {
-          activeBtn.classList.remove('is-loading');
-          activeBtn.removeAttribute('disabled');
-        }
-        showOtpStatus('Network error. Kripya apna internet connection check karein.', 'error');
+        console.error('Request OTP error:', err);
+        showModalStatus('Network error. Kripya apna internet connection check karein.', 'error');
+        return false;
       }
     }
 
-    // ==========================================
-    // VERIFY OTP HANDLER
-    // ==========================================
-    async function handleVerifyOtp() {
-      clearOtpStatus();
-      if (otpErrorMessage) otpErrorMessage.textContent = '';
+    // Verify OTP Handler
+    async function verifyAndSubmitOtp() {
+      clearModalStatus();
 
-      const rawMobile = mobileInput ? mobileInput.value.trim() : '';
-      const clean = sanitizeMobile(rawMobile);
-      const code = otpCodeInput ? otpCodeInput.value.trim().replace(/\D/g, '') : '';
-
-      if (!code || code.length !== 6) {
-        if (otpErrorMessage) otpErrorMessage.textContent = 'Please enter the complete 6-digit OTP code.';
-        if (otpCodeInput) otpCodeInput.focus();
+      // Check wrong attempts limit
+      const attemptCheck = checkWrongAttemptsLimit();
+      if (!attemptCheck.allowed) {
+        triggerWrongAttemptsLock(attemptCheck.remainingSeconds);
         return;
       }
 
-      if (btnVerifyOtp) {
-        btnVerifyOtp.classList.add('is-loading');
-        btnVerifyOtp.setAttribute('disabled', 'disabled');
+      const code = modalOtpInput ? modalOtpInput.value.trim().replace(/\D/g, '') : '';
+      if (!code || code.length !== 6) {
+        showModalStatus('Please enter the 6-digit OTP code received on your phone.', 'error');
+        if (modalOtpInput) modalOtpInput.focus();
+        return;
+      }
+
+      const mobileVal = pendingFormPayload ? pendingFormPayload.mobileNumber : sanitizeMobile(mobileInput?.value || '');
+
+      if (modalBtnVerify) {
+        modalBtnVerify.classList.add('is-loading');
+        modalBtnVerify.setAttribute('disabled', 'disabled');
       }
 
       try {
@@ -507,7 +489,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            mobileNumber: clean,
+            mobileNumber: mobileVal,
             otp: code,
             token: currentOtpToken,
           }),
@@ -515,159 +497,96 @@
 
         const data = await resp.json();
 
-        if (btnVerifyOtp) {
-          btnVerifyOtp.classList.remove('is-loading');
-          btnVerifyOtp.removeAttribute('disabled');
+        if (modalBtnVerify) {
+          modalBtnVerify.classList.remove('is-loading');
+          modalBtnVerify.removeAttribute('disabled');
         }
 
-        if (!resp.ok || !data.verified) {
-          showOtpStatus(data.message || 'Galat OTP code hai. Kripya sahi code enter karein.', 'error');
-          if (otpCodeInput) otpCodeInput.focus();
+        if (resp.status === 429) {
+          // Locked due to 3 wrong attempts
+          triggerWrongAttemptsLock(data.retryAfter || 60);
           return;
         }
 
-        // Verified successfully!
-        isMobileOtpVerified = true;
-        verifiedMobile = clean;
-
-        showOtpStatus('✓ Mobile number verified successfully! Application form unlock ho raha hai...', 'success');
-
-        setTimeout(function () {
-          // Update pills
-          if (stepPill1) {
-            stepPill1.classList.remove('active');
-            stepPill1.classList.add('completed');
-            stepPill1.innerHTML = '<span class="step-badge">✓</span><span class="step-title">Mobile Verified</span>';
+        if (!resp.ok || !data.verified) {
+          // Record wrong attempt
+          addTimestamp(OTP_WRONG_ATTEMPTS_STORAGE_KEY);
+          const currentLimit = checkWrongAttemptsLimit();
+          if (!currentLimit.allowed) {
+            triggerWrongAttemptsLock(currentLimit.remainingSeconds);
+          } else {
+            showModalStatus(
+              `Incorrect OTP. Aapke paas iss minute mein <strong>${currentLimit.remainingAttempts}</strong> attempt(s) bache hain.`,
+              'error'
+            );
+            if (modalOtpInput) {
+              modalOtpInput.select();
+              modalOtpInput.focus();
+            }
           }
-          if (stepPill2) {
-            stepPill2.classList.add('active');
-          }
-
-          // Switch containers
-          if (step1Container) step1Container.style.display = 'none';
-          if (step2Container) step2Container.style.display = 'block';
-
-          if (displayVerifiedPhone) {
-            displayVerifiedPhone.textContent = `+91 ${clean}`;
-          }
-
-          // Focus on first name input
-          if (firstNameInput) firstNameInput.focus();
-
-          // Scroll to card
-          const card = document.getElementById('lead-form-card');
-          if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }, 500);
-      } catch (err) {
-        console.error('Verify OTP network error:', err);
-        if (btnVerifyOtp) {
-          btnVerifyOtp.classList.remove('is-loading');
-          btnVerifyOtp.removeAttribute('disabled');
+          return;
         }
-        showOtpStatus('Verification failed. Kripya dobara try karein.', 'error');
+
+        // ==========================================
+        // OTP VERIFIED SUCCESSFULLY -> DONE!
+        // ==========================================
+        // Clear wrong attempts store
+        try {
+          sessionStorage.removeItem(OTP_WRONG_ATTEMPTS_STORAGE_KEY);
+        } catch (e) {}
+
+        showModalStatus('✓ OTP verified successfully! Processing your loan application...', 'success');
+
+        if (pendingFormPayload) {
+          pendingFormPayload.isMobileVerified = true;
+          pendingFormPayload.otpVerified = true;
+          submitLead(pendingFormPayload);
+        }
+      } catch (err) {
+        console.error('Verify OTP error:', err);
+        if (modalBtnVerify) {
+          modalBtnVerify.classList.remove('is-loading');
+          modalBtnVerify.removeAttribute('disabled');
+        }
+        showModalStatus('Network error while verifying OTP. Please try again.', 'error');
       }
     }
 
-    // ==========================================
-    // RESET / CHANGE MOBILE
-    // ==========================================
-    function resetMobileVerification() {
-      isMobileOtpVerified = false;
-      verifiedMobile = '';
-      currentOtpToken = '';
-
-      if (stepPill1) {
-        stepPill1.classList.remove('completed');
-        stepPill1.classList.add('active');
-        stepPill1.innerHTML = '<span class="step-badge">1</span><span class="step-title">Verify Mobile</span>';
-      }
-      if (stepPill2) {
-        stepPill2.classList.remove('active');
-      }
-
-      if (step2Container) step2Container.style.display = 'none';
-      if (step1Container) step1Container.style.display = 'block';
-
-      if (otpVerificationBox) otpVerificationBox.style.display = 'none';
-      if (btnSendOtp) btnSendOtp.style.display = 'block';
-      if (otpCodeInput) otpCodeInput.value = '';
-      clearOtpStatus();
-
-      if (mobileInput) {
-        mobileInput.removeAttribute('disabled');
-        mobileInput.focus();
-      }
+    // Modal Events
+    if (modalBtnClose) {
+      modalBtnClose.addEventListener('click', closeOtpModal);
     }
 
-    // Attach OTP Event Listeners
-    if (btnSendOtp) {
-      btnSendOtp.addEventListener('click', handleSendOtp);
+    if (modalBtnVerify) {
+      modalBtnVerify.addEventListener('click', verifyAndSubmitOtp);
     }
 
-    if (btnResendOtp) {
-      btnResendOtp.addEventListener('click', handleSendOtp);
+    if (modalBtnResend) {
+      modalBtnResend.addEventListener('click', async function () {
+        const mobileVal = pendingFormPayload ? pendingFormPayload.mobileNumber : sanitizeMobile(mobileInput?.value || '');
+        if (mobileVal) {
+          await requestOtp(mobileVal);
+        }
+      });
     }
 
-    if (btnVerifyOtp) {
-      btnVerifyOtp.addEventListener('click', handleVerifyOtp);
-    }
-
-    if (btnEditMobile) {
-      btnEditMobile.addEventListener('click', resetMobileVerification);
-    }
-
-    if (btnChangeVerifiedPhone) {
-      btnChangeVerifiedPhone.addEventListener('click', resetMobileVerification);
-    }
-
-    if (otpCodeInput) {
-      otpCodeInput.addEventListener('input', function (e) {
+    if (modalOtpInput) {
+      modalOtpInput.addEventListener('input', function (e) {
         const val = e.target.value.replace(/\D/g, '').slice(0, 6);
         if (e.target.value !== val) e.target.value = val;
         if (val.length === 6) {
-          handleVerifyOtp();
+          verifyAndSubmitOtp();
         }
       });
-      otpCodeInput.addEventListener('keydown', function (e) {
+      modalOtpInput.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') {
           e.preventDefault();
-          handleVerifyOtp();
+          verifyAndSubmitOtp();
         }
       });
     }
 
-    // Step 1: Mobile input listeners
-    if (mobileInput) {
-      mobileInput.addEventListener('input', function (e) {
-        const cleaned = sanitizeMobile(e.target.value);
-        if (e.target.value !== cleaned) e.target.value = cleaned;
-        if (cleaned.length === 10) {
-          if (validateMobile(cleaned)) {
-            setFieldState('group-mobile', true);
-          } else {
-            setFieldState('group-mobile', false, 'Mobile number must start with 6, 7, 8, or 9.');
-          }
-        }
-      });
-      mobileInput.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          handleSendOtp();
-        }
-      });
-      mobileInput.addEventListener('blur', function () {
-        const val = mobileInput.value.trim();
-        if (!val) {
-          setFieldState('group-mobile', false, 'Please enter your 10-digit mobile number.');
-        } else if (!validateMobile(val)) {
-          setFieldState('group-mobile', false, 'Enter a valid 10-digit mobile number starting with 6-9.');
-        } else {
-          setFieldState('group-mobile', true);
-        }
-      });
-    }
-
-    // Step 2: Form Fields live validations
+    // Live validation for Form inputs
     if (firstNameInput) {
       firstNameInput.addEventListener('input', function (e) {
         const cleaned = sanitizeName(e.target.value);
@@ -700,6 +619,30 @@
           setFieldState('group-last-name', false, 'Letters only (2-40 characters).');
         } else {
           setFieldState('group-last-name', true);
+        }
+      });
+    }
+
+    if (mobileInput) {
+      mobileInput.addEventListener('input', function (e) {
+        const cleaned = sanitizeMobile(e.target.value);
+        if (e.target.value !== cleaned) e.target.value = cleaned;
+        if (cleaned.length === 10) {
+          if (validateMobile(cleaned)) {
+            setFieldState('group-mobile', true);
+          } else {
+            setFieldState('group-mobile', false, 'Mobile number must start with 6, 7, 8, or 9.');
+          }
+        }
+      });
+      mobileInput.addEventListener('blur', function () {
+        const val = mobileInput.value.trim();
+        if (!val) {
+          setFieldState('group-mobile', false, 'Please enter your 10-digit mobile number.');
+        } else if (!validateMobile(val)) {
+          setFieldState('group-mobile', false, 'Enter a valid 10-digit mobile number starting with 6-9.');
+        } else {
+          setFieldState('group-mobile', true);
         }
       });
     }
@@ -796,16 +739,11 @@
       });
     }
 
-    // Step 2: Form submit
-    form.addEventListener('submit', function (e) {
+    // ==========================================
+    // FORM SUBMIT: VALIDATE -> TRIGGER OTP MODAL
+    // ==========================================
+    form.addEventListener('submit', async function (e) {
       e.preventDefault();
-
-      // Guard: OTP must be verified
-      if (!isMobileOtpVerified || !verifiedMobile) {
-        resetMobileVerification();
-        showOtpStatus('Form submit karne se pehle Mobile Number OTP verify karna zaroori hai.', 'error');
-        return;
-      }
 
       let hasErrors = false;
       let firstErrorEl = null;
@@ -826,6 +764,16 @@
         if (!firstErrorEl) firstErrorEl = lastNameInput;
       } else {
         setFieldState('group-last-name', true);
+      }
+
+      const mobileVal = mobileInput ? mobileInput.value.trim() : '';
+      const cleanMobile = sanitizeMobile(mobileVal);
+      if (!validateMobile(cleanMobile)) {
+        setFieldState('group-mobile', false, 'Enter a valid 10-digit mobile number starting with 6, 7, 8 or 9.');
+        hasErrors = true;
+        if (!firstErrorEl) firstErrorEl = mobileInput;
+      } else {
+        setFieldState('group-mobile', true);
       }
 
       const emailVal = emailInput ? emailInput.value.trim().toLowerCase() : '';
@@ -898,11 +846,18 @@
         return;
       }
 
+      // Check resend limit before launching OTP
+      const resendCheck = checkResendRateLimit();
+      if (!resendCheck.allowed) {
+        alert(`Security limit: 1 minute mein maximum 3 baar OTP request kar sakte hain. Kripya ${resendCheck.remainingSeconds} seconds wait karein.`);
+        return;
+      }
+
       const formattedSalary = salaryNum ? '₹' + salaryNum.toLocaleString('en-IN') : '';
-      const payload = {
+      pendingFormPayload = {
         firstName: firstNameVal,
         lastName: lastNameVal,
-        mobileNumber: verifiedMobile,
+        mobileNumber: cleanMobile,
         email: emailVal,
         monthlySalary: formattedSalary,
         salaryAmount: salaryNum,
@@ -914,7 +869,29 @@
         tracking: attributionData
       };
 
-      submitLead(payload);
+      // Button loading indicator
+      if (submitBtn) {
+        submitBtn.classList.add('is-loading');
+        submitBtn.setAttribute('disabled', 'disabled');
+      }
+
+      // Open Modal & Send OTP
+      if (modalPhoneDisplay) modalPhoneDisplay.textContent = `+91 ${cleanMobile}`;
+      if (modalOtpInput) modalOtpInput.value = '';
+      clearModalStatus();
+
+      const otpSent = await requestOtp(cleanMobile);
+      if (submitBtn) {
+        submitBtn.classList.remove('is-loading');
+        submitBtn.removeAttribute('disabled');
+      }
+
+      if (otpSent && otpModalOverlay) {
+        otpModalOverlay.classList.add('active');
+        if (modalOtpInput) {
+          setTimeout(() => modalOtpInput.focus(), 150);
+        }
+      }
     });
   }
 
