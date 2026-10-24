@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS public.leads (
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS employment_type TEXT;
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS lead_status TEXT DEFAULT 'New Lead';
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS document_status TEXT DEFAULT 'Pending';
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS otp_verified BOOLEAN DEFAULT false;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
 
 -- Step 2: Create indexes for fast searches by lead_id, mobile, and created_at
 CREATE INDEX IF NOT EXISTS idx_leads_lead_id ON public.leads (lead_id);

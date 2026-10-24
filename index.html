@@ -198,185 +198,273 @@
             </div>
 
             <form id="leadForm" class="lead-form" novalidate onsubmit="return false;">
-              <!-- Row 1: First Name & Last Name (Side by Side) -->
-              <div class="form-row">
-                <div class="form-group" id="group-first-name">
-                  <label for="firstName" class="form-label">
-                    First Name<span class="required-star">*</span>
+              <!-- Step Progress Header -->
+              <div class="form-steps-header" id="formStepsHeader" role="tablist">
+                <div class="step-pill active" id="stepPill1">
+                  <span class="step-badge">1</span>
+                  <span class="step-title">Verify Mobile</span>
+                </div>
+                <div class="step-connector"></div>
+                <div class="step-pill" id="stepPill2">
+                  <span class="step-badge">2</span>
+                  <span class="step-title">Loan Details</span>
+                </div>
+              </div>
+
+              <!-- ==========================================
+                   STEP 1: MOBILE & OTP VERIFICATION
+                   ========================================== -->
+              <div class="form-step-container active" id="step1Container">
+                <div class="step-info-box">
+                  <span class="step-info-icon">⚡</span>
+                  <span>Aadhaar/Bank linked mobile number enter karke OTP verify karein. Form fill up verification ke baad hi unlock hoga.</span>
+                </div>
+
+                <div class="form-group" id="group-mobile">
+                  <label for="mobile" class="form-label">
+                    Mobile Number<span class="required-star">*</span>
+                  </label>
+                  <div class="input-phone-group">
+                    <span class="phone-prefix">+91</span>
+                    <input
+                      type="tel"
+                      id="mobile"
+                      name="mobile"
+                      class="form-input"
+                      placeholder="9876543210"
+                      inputmode="numeric"
+                      pattern="[0-9]*"
+                      maxlength="10"
+                      autocomplete="tel-national"
+                      required
+                    />
+                  </div>
+                  <div class="error-message" role="alert"></div>
+                </div>
+
+                <!-- Send OTP Button -->
+                <button type="button" class="btn btn-primary btn-full btn-otp-action" id="btnSendOtp">
+                  <span class="btn-text">Get OTP via SMS</span>
+                  <span class="spinner" aria-hidden="true"></span>
+                </button>
+
+                <!-- OTP Verification Sub-Section (Appears after clicking Get OTP) -->
+                <div class="otp-verification-box" id="otpVerificationBox" style="display: none;">
+                  <div class="otp-box-header">
+                    <span class="otp-sent-text">Enter 6-digit OTP sent to <strong id="otpSentPhone">+91 XXXXXXXXXX</strong></span>
+                    <button type="button" class="btn-link-edit" id="btnEditMobile">Change</button>
+                  </div>
+
+                  <div class="form-group" id="group-otp">
+                    <input
+                      type="tel"
+                      id="otpCode"
+                      name="otpCode"
+                      class="form-input otp-input"
+                      placeholder="• • • • • •"
+                      inputmode="numeric"
+                      maxlength="6"
+                      autocomplete="one-time-code"
+                    />
+                    <div class="error-message" id="otpErrorMessage" role="alert"></div>
+                  </div>
+
+                  <div class="otp-security-note">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                    <span>Anti-Hacker Security: Max 4 OTP requests/min</span>
+                  </div>
+
+                  <div class="otp-status-message" id="otpStatusMessage" style="display: none;"></div>
+
+                  <button type="button" class="btn btn-primary btn-full btn-otp-action" id="btnVerifyOtp">
+                    <span class="btn-text">Verify OTP &amp; Proceed ➔</span>
+                    <span class="spinner" aria-hidden="true"></span>
+                  </button>
+
+                  <div class="otp-resend-row">
+                    <span id="resendTimerText">Resend OTP in <strong id="resendCountdown">30</strong>s</span>
+                    <button type="button" class="btn-link-resend" id="btnResendOtp" style="display: none;">
+                      Resend OTP
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ==========================================
+                   STEP 2: APPLICATION FORM (UNLOCKED AFTER OTP)
+                   ========================================== -->
+              <div class="form-step-container" id="step2Container" style="display: none;">
+                <!-- Verified Mobile Notification Pill -->
+                <div class="verified-phone-banner">
+                  <div class="verified-info">
+                    <span class="verified-check">✓</span>
+                    <span>Verified Mobile: <strong id="displayVerifiedPhone">+91 XXXXXXXXXX</strong></span>
+                  </div>
+                  <button type="button" class="btn-change-verified" id="btnChangeVerifiedPhone">Change</button>
+                </div>
+
+                <!-- Row 1: First Name & Last Name (Side by Side) -->
+                <div class="form-row">
+                  <div class="form-group" id="group-first-name">
+                    <label for="firstName" class="form-label">
+                      First Name<span class="required-star">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      id="firstName"
+                      name="firstName"
+                      class="form-input"
+                      placeholder="First name"
+                      maxlength="40"
+                      autocomplete="given-name"
+                      required
+                    />
+                    <div class="error-message" role="alert"></div>
+                  </div>
+
+                  <div class="form-group" id="group-last-name">
+                    <label for="lastName" class="form-label">
+                      Last Name<span class="required-star">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      id="lastName"
+                      name="lastName"
+                      class="form-input"
+                      placeholder="Last name"
+                      maxlength="40"
+                      autocomplete="family-name"
+                      required
+                    />
+                    <div class="error-message" role="alert"></div>
+                  </div>
+                </div>
+
+                <!-- Row 2: Email Address (Full Width) -->
+                <div class="form-group" id="group-email">
+                  <label for="email" class="form-label">
+                    Email Address<span class="required-star">*</span>
                   </label>
                   <input
-                    type="text"
-                    id="firstName"
-                    name="firstName"
+                    type="email"
+                    id="email"
+                    name="email"
                     class="form-input"
-                    placeholder="First name"
-                    maxlength="40"
-                    autocomplete="given-name"
+                    placeholder="name@example.com"
+                    autocomplete="email"
                     required
                   />
                   <div class="error-message" role="alert"></div>
                 </div>
 
-                <div class="form-group" id="group-last-name">
-                  <label for="lastName" class="form-label">
-                    Last Name<span class="required-star">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    id="lastName"
-                    name="lastName"
-                    class="form-input"
-                    placeholder="Last name"
-                    maxlength="40"
-                    autocomplete="family-name"
-                    required
-                  />
-                  <div class="error-message" role="alert"></div>
-                </div>
-              </div>
+                <!-- Row 3: Monthly Salary & Employment Type (Side by Side) -->
+                <div class="form-row">
+                  <div class="form-group" id="group-salary">
+                    <label for="monthlySalary" class="form-label">
+                      Monthly Salary<span class="required-star">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      id="monthlySalary"
+                      name="monthlySalary"
+                      class="form-input"
+                      placeholder="e.g. 20,000"
+                      inputmode="numeric"
+                      autocomplete="off"
+                      required
+                    />
+                    <div class="error-message" role="alert"></div>
+                  </div>
 
-              <!-- Row 2: Mobile Number (Full Width) -->
-              <div class="form-group" id="group-mobile">
-                <label for="mobile" class="form-label">
-                  Mobile Number<span class="required-star">*</span>
-                </label>
-                <div class="input-phone-group">
-                  <span class="phone-prefix">+91</span>
-                  <input
-                    type="tel"
-                    id="mobile"
-                    name="mobile"
-                    class="form-input"
-                    placeholder="9876543210"
-                    inputmode="numeric"
-                    pattern="[0-9]*"
-                    maxlength="10"
-                    autocomplete="tel-national"
-                    required
-                  />
-                </div>
-                <div class="error-message" role="alert"></div>
-              </div>
-
-              <!-- Row 3: Email Address (Full Width) -->
-              <div class="form-group" id="group-email">
-                <label for="email" class="form-label">
-                  Email Address<span class="required-star">*</span>
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  class="form-input"
-                  placeholder="name@example.com"
-                  autocomplete="email"
-                  required
-                />
-                <div class="error-message" role="alert"></div>
-              </div>
-
-              <!-- Row 4: Monthly Salary & Employment Type (Side by Side) -->
-              <div class="form-row">
-                <div class="form-group" id="group-salary">
-                  <label for="monthlySalary" class="form-label">
-                    Monthly Salary<span class="required-star">*</span>
-                  </label>
-                  <select id="monthlySalary" name="monthlySalary" class="form-select" required>
-                    <option value="" disabled selected>Select Salary</option>
-                    <option value="0">Below ₹25,000</option>
-                    <option value="1">₹25,000 to ₹39,999</option>
-                    <option value="2">₹40,000 to ₹59,999</option>
-                    <option value="3">₹60,000 to ₹99,999</option>
-                    <option value="4">₹1,00,000 or more</option>
-                  </select>
-                  <div class="error-message" role="alert"></div>
+                  <div class="form-group" id="group-employment">
+                    <label for="employmentType" class="form-label">
+                      Employment Type<span class="required-star">*</span>
+                    </label>
+                    <select id="employmentType" name="employmentType" class="form-select" required>
+                      <option value="" disabled selected>Select Employment Type</option>
+                      <option value="Self-Employed">Self-Employed</option>
+                      <option value="Salaried">Salaried</option>
+                    </select>
+                    <div class="error-message" role="alert"></div>
+                  </div>
                 </div>
 
-                <div class="form-group" id="group-employment">
-                  <label for="employmentType" class="form-label">
-                    Employment Type<span class="required-star">*</span>
-                  </label>
-                  <select id="employmentType" name="employmentType" class="form-select" required>
-                    <option value="" disabled selected>Select Employment Type</option>
-                    <option value="Self-Employ">Self-Employ</option>
-                    <option value="Salaried">Salaried</option>
-                  </select>
-                  <div class="error-message" role="alert"></div>
-                </div>
-              </div>
+                <!-- Row 4: PAN Number & City (Side by Side) -->
+                <div class="form-row">
+                  <div class="form-group" id="group-pan">
+                    <label for="panNumber" class="form-label">
+                      PAN Number<span class="required-star">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      id="panNumber"
+                      name="panNumber"
+                      class="form-input pan-input"
+                      placeholder="ABCDE1234F"
+                      maxlength="10"
+                      autocomplete="off"
+                      autocapitalize="characters"
+                      spellcheck="false"
+                      required
+                    />
+                    <div class="error-message" role="alert"></div>
+                  </div>
 
-              <!-- Row 5: PAN Number & City (Side by Side) -->
-              <div class="form-row">
-                <div class="form-group" id="group-pan">
-                  <label for="panNumber" class="form-label">
-                    PAN Number<span class="required-star">*</span>
+                  <div class="form-group" id="group-city">
+                    <label for="city" class="form-label">
+                      Current City<span class="required-star">*</span>
+                    </label>
+                    <select id="city" name="city" class="form-select" required>
+                      <option value="" disabled selected>Select City</option>
+                      <option value="Mumbai">Mumbai</option>
+                      <option value="Delhi NCR">Delhi NCR</option>
+                      <option value="Gurgaon">Gurgaon</option>
+                      <option value="Noida">Noida</option>
+                      <option value="Bangalore">Bangalore</option>
+                      <option value="Pune">Pune</option>
+                      <option value="Hyderabad">Hyderabad</option>
+                      <option value="Chennai">Chennai</option>
+                      <option value="Kolkata">Kolkata</option>
+                      <option value="Ahmedabad">Ahmedabad</option>
+                      <option value="Other">Other</option>
+                    </select>
+                    <div class="error-message" role="alert"></div>
+                  </div>
+                </div>
+
+                <!-- Consent Checkbox -->
+                <div class="form-group consent-group" id="group-consent">
+                  <label class="checkbox-label">
+                    <input
+                      type="checkbox"
+                      id="consentCheckbox"
+                      name="consentCheckbox"
+                      required
+                    />
+                    <span>
+                      I authorize Udhaar Portal to process my PAN and contact
+                      details to assess my loan application and fetch credit
+                      information in accordance with the
+                      <a href="https://udhaarportal.com/privacy-policy" target="_blank" rel="noopener noreferrer">Privacy Policy</a> and
+                      <a href="https://udhaarportal.com/terms-condition" target="_blank" rel="noopener noreferrer">Terms of Service</a>.
+                    </span>
                   </label>
-                  <input
-                    type="text"
-                    id="panNumber"
-                    name="panNumber"
-                    class="form-input pan-input"
-                    placeholder="ABCDE1234F"
-                    maxlength="10"
-                    autocomplete="off"
-                    autocapitalize="characters"
-                    spellcheck="false"
-                    required
-                  />
                   <div class="error-message" role="alert"></div>
                 </div>
 
-                <div class="form-group" id="group-city">
-                  <label for="city" class="form-label">
-                    Current City<span class="required-star">*</span>
-                  </label>
-                  <select id="city" name="city" class="form-select" required>
-                    <option value="" disabled selected>Select City</option>
-                    <option value="Mumbai">Mumbai</option>
-                    <option value="Delhi NCR">Delhi NCR</option>
-                    <option value="Gurgaon">Gurgaon</option>
-                    <option value="Noida">Noida</option>
-                    <option value="Bangalore">Bangalore</option>
-                    <option value="Pune">Pune</option>
-                    <option value="Hyderabad">Hyderabad</option>
-                    <option value="Chennai">Chennai</option>
-                    <option value="Kolkata">Kolkata</option>
-                    <option value="Ahmedabad">Ahmedabad</option>
-                    <option value="Other">Other</option>
-                  </select>
-                  <div class="error-message" role="alert"></div>
-                </div>
+                <!-- Submit Button with Spinner -->
+                <button
+                  type="submit"
+                  class="btn btn-primary btn-submit btn-full"
+                  id="submitBtn"
+                >
+                  <span class="btn-text">Check Eligibility &amp; Apply</span>
+                  <span class="spinner" aria-hidden="true"></span>
+                </button>
               </div>
-
-              <!-- Consent Checkbox -->
-              <div class="form-group consent-group" id="group-consent">
-                <label class="checkbox-label">
-                  <input
-                    type="checkbox"
-                    id="consentCheckbox"
-                    name="consentCheckbox"
-                    required
-                  />
-                  <span>
-                    I authorize Udhaar Portal to process my PAN and contact
-                    details to assess my loan application and fetch credit
-                    information in accordance with the
-                    <a href="https://udhaarportal.com/privacy-policy" target="_blank" rel="noopener noreferrer">Privacy Policy</a> and
-                    <a href="https://udhaarportal.com/terms-condition" target="_blank" rel="noopener noreferrer">Terms of Service</a>.
-                  </span>
-                </label>
-                <div class="error-message" role="alert"></div>
-              </div>
-
-              <!-- Submit Button with Spinner -->
-              <button
-                type="submit"
-                class="btn btn-primary btn-submit btn-full"
-                id="submitBtn"
-              >
-                <span class="btn-text">Check Eligibility &amp; Apply</span>
-                <span class="spinner" aria-hidden="true"></span>
-              </button>
 
               <div class="form-guarantee-note">
                 <svg

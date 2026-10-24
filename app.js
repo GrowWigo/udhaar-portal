@@ -108,6 +108,10 @@
     return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(trimmed);
   }
 
+  function sanitizeSalary(value) {
+    return (value || '').replace(/\D/g, '').slice(0, 9);
+  }
+
   function sanitizePAN(value) {
     return (value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
   }
@@ -160,16 +164,9 @@
 
       const tracking = payload.tracking || {};
 
-      // Human-readable labels for Monthly Salary
-      const SALARY_LABEL_MAP = {
-        '0': 'Below ₹25,000',
-        '1': '₹25,000 to ₹39,999',
-        '2': '₹40,000 to ₹59,999',
-        '3': '₹60,000 to ₹99,999',
-        '4': '₹1,00,000 or more'
-      };
-
-      const readableSalary = SALARY_LABEL_MAP[payload.monthlySalary] || payload.monthlySalary || '';
+      const rawSalaryDigits = (payload.monthlySalary || '').toString().replace(/\D/g, '');
+      const salaryAmount = payload.salaryAmount || (rawSalaryDigits ? parseInt(rawSalaryDigits, 10) : 0);
+      const readableSalary = payload.monthlySalary || (salaryAmount ? '₹' + salaryAmount.toLocaleString('en-IN') : '');
 
       const leadRecord = {
         lead_id: leadId,
@@ -189,6 +186,7 @@
           mobileNumber: payload.mobileNumber,
           email: payload.email,
           monthlySalary: readableSalary,
+          salaryAmount: salaryAmount,
           employmentType: payload.employmentType || '',
           panNumber: payload.panNumber,
           city: payload.city,
@@ -204,7 +202,10 @@
         documents: [],
         lead_status: 'New Lead',
         status: 'New Lead',
-        document_status: 'Pending'
+        document_status: 'Pending',
+        is_mobile_verified: true,
+        otp_verified: true,
+        verified_at: new Date().toISOString()
       };
 
       // Persist in Supabase
@@ -222,12 +223,10 @@
         console.warn('Storage unavailable', storageErr);
       }
 
-      // Qualification rules (checks raw selection)
-      const salaryVal = Number(payload.monthlySalary);
-      const isSalaryQualified = !isNaN(salaryVal) && salaryVal >= 2;
-      const isEmploymentQualified = payload.employmentType === 'Salaried';
-
-      const isQualified = isSalaryQualified && isEmploymentQualified;
+      // Qualification rules:
+      // Salary < ₹35,000 -> thank-you-standard.html
+      // Salary >= ₹35,000 -> thank-you-qualified.html
+      const isQualified = !isNaN(salaryAmount) && salaryAmount >= 35000;
       const targetPage = isQualified ? 'thank-you-qualified.html' : 'thank-you-standard.html';
 
       // Redirect with lead_id parameter
@@ -250,16 +249,425 @@
     const form = document.getElementById('leadForm');
     if (!form) return;
 
+    // Step containers & pills
+    const step1Container = document.getElementById('step1Container');
+    const step2Container = document.getElementById('step2Container');
+    const stepPill1 = document.getElementById('stepPill1');
+    const stepPill2 = document.getElementById('stepPill2');
+
+    // Step 1: Mobile & OTP verification elements
+    const mobileInput = document.getElementById('mobile');
+    const btnSendOtp = document.getElementById('btnSendOtp');
+    const otpVerificationBox = document.getElementById('otpVerificationBox');
+    const otpSentPhone = document.getElementById('otpSentPhone');
+    const btnEditMobile = document.getElementById('btnEditMobile');
+    const otpCodeInput = document.getElementById('otpCode');
+    const otpErrorMessage = document.getElementById('otpErrorMessage');
+    const otpStatusMessage = document.getElementById('otpStatusMessage');
+    const btnVerifyOtp = document.getElementById('btnVerifyOtp');
+    const resendTimerText = document.getElementById('resendTimerText');
+    const resendCountdown = document.getElementById('resendCountdown');
+    const btnResendOtp = document.getElementById('btnResendOtp');
+
+    // Step 2 elements
+    const displayVerifiedPhone = document.getElementById('displayVerifiedPhone');
+    const btnChangeVerifiedPhone = document.getElementById('btnChangeVerifiedPhone');
     const firstNameInput = document.getElementById('firstName');
     const lastNameInput = document.getElementById('lastName');
-    const mobileInput = document.getElementById('mobile');
     const emailInput = document.getElementById('email');
-    const salarySelect = document.getElementById('monthlySalary');
+    const salaryInput = document.getElementById('monthlySalary');
     const employmentSelect = document.getElementById('employmentType');
     const panInput = document.getElementById('panNumber');
     const citySelect = document.getElementById('city');
     const consentCheck = document.getElementById('consentCheckbox');
 
+    // OTP State Variables
+    let isMobileOtpVerified = false;
+    let verifiedMobile = '';
+    let currentOtpToken = '';
+    let resendTimer = null;
+    let rateLimitCooldownTimer = null;
+
+    // ==========================================
+    // RATE LIMITING (Anti-hacker protection: Max 4 requests/min)
+    // ==========================================
+    const OTP_RATE_STORAGE_KEY = 'udhaar_otp_req_timestamps';
+    const OTP_MAX_REQUESTS_PER_MIN = 4;
+    const OTP_WINDOW_MS = 60000;
+
+    function getOtpTimestamps() {
+      try {
+        const raw = sessionStorage.getItem(OTP_RATE_STORAGE_KEY);
+        if (!raw) return [];
+        const arr = JSON.parse(raw);
+        const now = Date.now();
+        return arr.filter((t) => now - t < OTP_WINDOW_MS);
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function recordOtpTimestamp() {
+      const timestamps = getOtpTimestamps();
+      timestamps.push(Date.now());
+      try {
+        sessionStorage.setItem(OTP_RATE_STORAGE_KEY, JSON.stringify(timestamps));
+      } catch (e) {}
+    }
+
+    function checkClientRateLimit() {
+      const timestamps = getOtpTimestamps();
+      if (timestamps.length >= OTP_MAX_REQUESTS_PER_MIN) {
+        const oldest = timestamps[0];
+        const waitMs = OTP_WINDOW_MS - (Date.now() - oldest);
+        const waitSeconds = Math.max(1, Math.ceil(waitMs / 1000));
+        return { allowed: false, waitSeconds };
+      }
+      return { allowed: true, remaining: OTP_MAX_REQUESTS_PER_MIN - timestamps.length };
+    }
+
+    function showOtpStatus(msg, type = 'error') {
+      if (!otpStatusMessage) return;
+      otpStatusMessage.className = `otp-status-message ${type}`;
+      otpStatusMessage.innerHTML = msg;
+      otpStatusMessage.style.display = 'block';
+    }
+
+    function clearOtpStatus() {
+      if (!otpStatusMessage) return;
+      otpStatusMessage.innerHTML = '';
+      otpStatusMessage.style.display = 'none';
+    }
+
+    function triggerRateLimitLock(waitSeconds) {
+      if (btnSendOtp) btnSendOtp.setAttribute('disabled', 'disabled');
+      if (btnResendOtp) btnResendOtp.setAttribute('disabled', 'disabled');
+
+      showOtpStatus(
+        `⚠️ <strong>Security Limit:</strong> Hacker attack protection ke liye 1 minute mein maximum 4 OTP requests allowed hain. Kripya <strong id="rlSec">${waitSeconds}</strong>s wait karein.`,
+        'warning'
+      );
+
+      if (rateLimitCooldownTimer) clearInterval(rateLimitCooldownTimer);
+      let remaining = waitSeconds;
+      rateLimitCooldownTimer = setInterval(function () {
+        remaining--;
+        const secSpan = document.getElementById('rlSec');
+        if (secSpan) secSpan.textContent = remaining;
+        if (remaining <= 0) {
+          clearInterval(rateLimitCooldownTimer);
+          rateLimitCooldownTimer = null;
+          clearOtpStatus();
+          if (btnSendOtp) btnSendOtp.removeAttribute('disabled');
+          if (btnResendOtp) btnResendOtp.removeAttribute('disabled');
+        }
+      }, 1000);
+    }
+
+    function startResendCooldown(seconds = 30) {
+      if (resendTimer) clearInterval(resendTimer);
+      if (btnResendOtp) btnResendOtp.style.display = 'none';
+      if (resendTimerText) resendTimerText.style.display = 'inline';
+      let count = seconds;
+      if (resendCountdown) resendCountdown.textContent = count;
+
+      resendTimer = setInterval(function () {
+        count--;
+        if (resendCountdown) resendCountdown.textContent = count;
+        if (count <= 0) {
+          clearInterval(resendTimer);
+          resendTimer = null;
+          const limit = checkClientRateLimit();
+          if (limit.allowed) {
+            if (resendTimerText) resendTimerText.style.display = 'none';
+            if (btnResendOtp) {
+              btnResendOtp.style.display = 'inline';
+              btnResendOtp.removeAttribute('disabled');
+            }
+          } else {
+            if (resendTimerText) {
+              resendTimerText.style.display = 'inline';
+              resendTimerText.innerHTML = `⚠️ Limit: Wait <strong>${limit.waitSeconds}</strong>s to resend`;
+            }
+          }
+        }
+      }, 1000);
+    }
+
+    // ==========================================
+    // SEND OTP HANDLER
+    // ==========================================
+    async function handleSendOtp() {
+      clearOtpStatus();
+      if (otpErrorMessage) otpErrorMessage.textContent = '';
+
+      const rawMobile = mobileInput ? mobileInput.value.trim() : '';
+      const clean = sanitizeMobile(rawMobile);
+
+      if (!clean || clean.length !== 10 || !validateMobile(clean)) {
+        setFieldState('group-mobile', false, 'Enter a valid 10-digit mobile number starting with 6, 7, 8 or 9.');
+        if (mobileInput) mobileInput.focus();
+        return;
+      }
+
+      setFieldState('group-mobile', true);
+
+      // Check client rate limit (max 4 requests per min)
+      const limit = checkClientRateLimit();
+      if (!limit.allowed) {
+        triggerRateLimitLock(limit.waitSeconds);
+        return;
+      }
+
+      const activeBtn = (btnSendOtp && btnSendOtp.style.display !== 'none') ? btnSendOtp : btnResendOtp;
+      if (activeBtn) {
+        activeBtn.classList.add('is-loading');
+        activeBtn.setAttribute('disabled', 'disabled');
+      }
+
+      try {
+        const resp = await fetch('/api/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mobileNumber: clean }),
+        });
+
+        const data = await resp.json();
+
+        if (activeBtn) {
+          activeBtn.classList.remove('is-loading');
+          activeBtn.removeAttribute('disabled');
+        }
+
+        if (resp.status === 429) {
+          triggerRateLimitLock(data.retryAfter || 60);
+          return;
+        }
+
+        if (!resp.ok || data.status !== 'success') {
+          showOtpStatus(data.message || 'OTP send karne mein issue aaya. Please dubara try karein.', 'error');
+          return;
+        }
+
+        // Record timestamp for rate limit tracking
+        recordOtpTimestamp();
+        currentOtpToken = data.token;
+
+        // Show OTP box
+        if (btnSendOtp) btnSendOtp.style.display = 'none';
+        if (otpVerificationBox) otpVerificationBox.style.display = 'block';
+        if (otpSentPhone) otpSentPhone.textContent = `+91 ${clean}`;
+
+        let successMsg = `OTP sent to +91 ${clean}.`;
+        if (data.demoMode && data.previewOtp) {
+          successMsg += ` <br><strong style="color: #047857;">[Test OTP: ${data.previewOtp}]</strong>`;
+        }
+        showOtpStatus(successMsg, 'success');
+
+        startResendCooldown(30);
+
+        if (otpCodeInput) {
+          otpCodeInput.value = '';
+          otpCodeInput.focus();
+        }
+      } catch (err) {
+        console.error('Send OTP network error:', err);
+        if (activeBtn) {
+          activeBtn.classList.remove('is-loading');
+          activeBtn.removeAttribute('disabled');
+        }
+        showOtpStatus('Network error. Kripya apna internet connection check karein.', 'error');
+      }
+    }
+
+    // ==========================================
+    // VERIFY OTP HANDLER
+    // ==========================================
+    async function handleVerifyOtp() {
+      clearOtpStatus();
+      if (otpErrorMessage) otpErrorMessage.textContent = '';
+
+      const rawMobile = mobileInput ? mobileInput.value.trim() : '';
+      const clean = sanitizeMobile(rawMobile);
+      const code = otpCodeInput ? otpCodeInput.value.trim().replace(/\D/g, '') : '';
+
+      if (!code || code.length !== 6) {
+        if (otpErrorMessage) otpErrorMessage.textContent = 'Please enter the complete 6-digit OTP code.';
+        if (otpCodeInput) otpCodeInput.focus();
+        return;
+      }
+
+      if (btnVerifyOtp) {
+        btnVerifyOtp.classList.add('is-loading');
+        btnVerifyOtp.setAttribute('disabled', 'disabled');
+      }
+
+      try {
+        const resp = await fetch('/api/verify-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mobileNumber: clean,
+            otp: code,
+            token: currentOtpToken,
+          }),
+        });
+
+        const data = await resp.json();
+
+        if (btnVerifyOtp) {
+          btnVerifyOtp.classList.remove('is-loading');
+          btnVerifyOtp.removeAttribute('disabled');
+        }
+
+        if (!resp.ok || !data.verified) {
+          showOtpStatus(data.message || 'Galat OTP code hai. Kripya sahi code enter karein.', 'error');
+          if (otpCodeInput) otpCodeInput.focus();
+          return;
+        }
+
+        // Verified successfully!
+        isMobileOtpVerified = true;
+        verifiedMobile = clean;
+
+        showOtpStatus('✓ Mobile number verified successfully! Application form unlock ho raha hai...', 'success');
+
+        setTimeout(function () {
+          // Update pills
+          if (stepPill1) {
+            stepPill1.classList.remove('active');
+            stepPill1.classList.add('completed');
+            stepPill1.innerHTML = '<span class="step-badge">✓</span><span class="step-title">Mobile Verified</span>';
+          }
+          if (stepPill2) {
+            stepPill2.classList.add('active');
+          }
+
+          // Switch containers
+          if (step1Container) step1Container.style.display = 'none';
+          if (step2Container) step2Container.style.display = 'block';
+
+          if (displayVerifiedPhone) {
+            displayVerifiedPhone.textContent = `+91 ${clean}`;
+          }
+
+          // Focus on first name input
+          if (firstNameInput) firstNameInput.focus();
+
+          // Scroll to card
+          const card = document.getElementById('lead-form-card');
+          if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 500);
+      } catch (err) {
+        console.error('Verify OTP network error:', err);
+        if (btnVerifyOtp) {
+          btnVerifyOtp.classList.remove('is-loading');
+          btnVerifyOtp.removeAttribute('disabled');
+        }
+        showOtpStatus('Verification failed. Kripya dobara try karein.', 'error');
+      }
+    }
+
+    // ==========================================
+    // RESET / CHANGE MOBILE
+    // ==========================================
+    function resetMobileVerification() {
+      isMobileOtpVerified = false;
+      verifiedMobile = '';
+      currentOtpToken = '';
+
+      if (stepPill1) {
+        stepPill1.classList.remove('completed');
+        stepPill1.classList.add('active');
+        stepPill1.innerHTML = '<span class="step-badge">1</span><span class="step-title">Verify Mobile</span>';
+      }
+      if (stepPill2) {
+        stepPill2.classList.remove('active');
+      }
+
+      if (step2Container) step2Container.style.display = 'none';
+      if (step1Container) step1Container.style.display = 'block';
+
+      if (otpVerificationBox) otpVerificationBox.style.display = 'none';
+      if (btnSendOtp) btnSendOtp.style.display = 'block';
+      if (otpCodeInput) otpCodeInput.value = '';
+      clearOtpStatus();
+
+      if (mobileInput) {
+        mobileInput.removeAttribute('disabled');
+        mobileInput.focus();
+      }
+    }
+
+    // Attach OTP Event Listeners
+    if (btnSendOtp) {
+      btnSendOtp.addEventListener('click', handleSendOtp);
+    }
+
+    if (btnResendOtp) {
+      btnResendOtp.addEventListener('click', handleSendOtp);
+    }
+
+    if (btnVerifyOtp) {
+      btnVerifyOtp.addEventListener('click', handleVerifyOtp);
+    }
+
+    if (btnEditMobile) {
+      btnEditMobile.addEventListener('click', resetMobileVerification);
+    }
+
+    if (btnChangeVerifiedPhone) {
+      btnChangeVerifiedPhone.addEventListener('click', resetMobileVerification);
+    }
+
+    if (otpCodeInput) {
+      otpCodeInput.addEventListener('input', function (e) {
+        const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+        if (e.target.value !== val) e.target.value = val;
+        if (val.length === 6) {
+          handleVerifyOtp();
+        }
+      });
+      otpCodeInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleVerifyOtp();
+        }
+      });
+    }
+
+    // Step 1: Mobile input listeners
+    if (mobileInput) {
+      mobileInput.addEventListener('input', function (e) {
+        const cleaned = sanitizeMobile(e.target.value);
+        if (e.target.value !== cleaned) e.target.value = cleaned;
+        if (cleaned.length === 10) {
+          if (validateMobile(cleaned)) {
+            setFieldState('group-mobile', true);
+          } else {
+            setFieldState('group-mobile', false, 'Mobile number must start with 6, 7, 8, or 9.');
+          }
+        }
+      });
+      mobileInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleSendOtp();
+        }
+      });
+      mobileInput.addEventListener('blur', function () {
+        const val = mobileInput.value.trim();
+        if (!val) {
+          setFieldState('group-mobile', false, 'Please enter your 10-digit mobile number.');
+        } else if (!validateMobile(val)) {
+          setFieldState('group-mobile', false, 'Enter a valid 10-digit mobile number starting with 6-9.');
+        } else {
+          setFieldState('group-mobile', true);
+        }
+      });
+    }
+
+    // Step 2: Form Fields live validations
     if (firstNameInput) {
       firstNameInput.addEventListener('input', function (e) {
         const cleaned = sanitizeName(e.target.value);
@@ -296,30 +704,6 @@
       });
     }
 
-    if (mobileInput) {
-      mobileInput.addEventListener('input', function (e) {
-        const cleaned = sanitizeMobile(e.target.value);
-        if (e.target.value !== cleaned) e.target.value = cleaned;
-        if (cleaned.length === 10) {
-          if (validateMobile(cleaned)) {
-            setFieldState('group-mobile', true);
-          } else {
-            setFieldState('group-mobile', false, 'Mobile number must start with 6, 7, 8, or 9.');
-          }
-        }
-      });
-      mobileInput.addEventListener('blur', function () {
-        const val = mobileInput.value.trim();
-        if (!val) {
-          setFieldState('group-mobile', false, 'Please enter your 10-digit mobile number.');
-        } else if (!validateMobile(val)) {
-          setFieldState('group-mobile', false, 'Enter a valid 10-digit mobile number starting with 6-9.');
-        } else {
-          setFieldState('group-mobile', true);
-        }
-      });
-    }
-
     if (emailInput) {
       emailInput.addEventListener('input', function (e) {
         const lower = e.target.value.toLowerCase().trim();
@@ -338,10 +722,29 @@
       });
     }
 
-    if (salarySelect) {
-      salarySelect.addEventListener('change', function () {
-        if (salarySelect.value !== '') setFieldState('group-salary', true);
-        else setFieldState('group-salary', false, 'Please select your monthly salary range.');
+    if (salaryInput) {
+      salaryInput.addEventListener('input', function (e) {
+        const raw = sanitizeSalary(e.target.value);
+        if (raw) {
+          const num = parseInt(raw, 10);
+          e.target.value = num.toLocaleString('en-IN');
+          if (num >= 5000) {
+            setFieldState('group-salary', true);
+          }
+        } else {
+          e.target.value = '';
+        }
+      });
+      salaryInput.addEventListener('blur', function () {
+        const raw = sanitizeSalary(salaryInput.value);
+        const num = parseInt(raw, 10);
+        if (!raw || isNaN(num) || num <= 0) {
+          setFieldState('group-salary', false, 'Please enter your monthly salary.');
+        } else if (num < 5000) {
+          setFieldState('group-salary', false, 'Minimum monthly salary is ₹5,000.');
+        } else {
+          setFieldState('group-salary', true);
+        }
       });
     }
 
@@ -393,8 +796,16 @@
       });
     }
 
+    // Step 2: Form submit
     form.addEventListener('submit', function (e) {
       e.preventDefault();
+
+      // Guard: OTP must be verified
+      if (!isMobileOtpVerified || !verifiedMobile) {
+        resetMobileVerification();
+        showOtpStatus('Form submit karne se pehle Mobile Number OTP verify karna zaroori hai.', 'error');
+        return;
+      }
 
       let hasErrors = false;
       let firstErrorEl = null;
@@ -417,15 +828,6 @@
         setFieldState('group-last-name', true);
       }
 
-      const mobileVal = mobileInput ? mobileInput.value.trim() : '';
-      if (!validateMobile(mobileVal)) {
-        setFieldState('group-mobile', false, 'Enter a valid 10-digit mobile number starting with 6, 7, 8 or 9.');
-        hasErrors = true;
-        if (!firstErrorEl) firstErrorEl = mobileInput;
-      } else {
-        setFieldState('group-mobile', true);
-      }
-
       const emailVal = emailInput ? emailInput.value.trim().toLowerCase() : '';
       if (!validateEmail(emailVal)) {
         setFieldState('group-email', false, 'Please enter a valid email address.');
@@ -435,11 +837,16 @@
         setFieldState('group-email', true);
       }
 
-      const salaryVal = salarySelect ? salarySelect.value : '';
-      if (salaryVal === '') {
-        setFieldState('group-salary', false, 'Please select your monthly salary range.');
+      const rawSalary = salaryInput ? sanitizeSalary(salaryInput.value) : '';
+      const salaryNum = parseInt(rawSalary, 10);
+      if (!rawSalary || isNaN(salaryNum) || salaryNum <= 0) {
+        setFieldState('group-salary', false, 'Please enter your monthly salary.');
         hasErrors = true;
-        if (!firstErrorEl) firstErrorEl = salarySelect;
+        if (!firstErrorEl) firstErrorEl = salaryInput;
+      } else if (salaryNum < 5000) {
+        setFieldState('group-salary', false, 'Minimum monthly salary is ₹5,000.');
+        hasErrors = true;
+        if (!firstErrorEl) firstErrorEl = salaryInput;
       } else {
         setFieldState('group-salary', true);
       }
@@ -491,12 +898,14 @@
         return;
       }
 
+      const formattedSalary = salaryNum ? '₹' + salaryNum.toLocaleString('en-IN') : '';
       const payload = {
         firstName: firstNameVal,
         lastName: lastNameVal,
-        mobileNumber: mobileVal,
+        mobileNumber: verifiedMobile,
         email: emailVal,
-        monthlySalary: salaryVal,
+        monthlySalary: formattedSalary,
+        salaryAmount: salaryNum,
         employmentType: employmentVal,
         panNumber: panVal,
         city: cityVal,
