@@ -356,7 +356,7 @@
       if (modalBtnVerify) modalBtnVerify.setAttribute('disabled', 'disabled');
 
       showModalStatus(
-        `⚠️ <strong>Security Limit:</strong> 1 minute mein maximum 3 baar galat OTP try kar sakte hain. Kripya <strong id="wrongSec">${seconds}</strong>s wait karein.`,
+        `⚠️ <strong>Security Limit:</strong> Maximum 3 incorrect OTP attempts allowed per minute. Please wait <strong id="wrongSec">${seconds}</strong>s before trying again.`,
         'warning'
       );
 
@@ -415,7 +415,7 @@
       const resendCheck = checkResendRateLimit();
       if (!resendCheck.allowed) {
         showModalStatus(
-          `⚠️ <strong>Security Limit:</strong> 1 minute mein maximum 3 baar OTP request/resend allow hai. Kripya ${resendCheck.remainingSeconds}s wait karein.`,
+          `⚠️ <strong>Security Limit:</strong> Maximum 3 OTP requests allowed per minute. Please wait ${resendCheck.remainingSeconds}s before requesting again.`,
           'warning'
         );
         return false;
@@ -436,7 +436,7 @@
         }
 
         if (!resp.ok || data.status !== 'success') {
-          showModalStatus(data.message || 'OTP send karne mein issue aaya. Please dobara try karein.', 'error');
+          showModalStatus(data.message || 'Unable to send OTP at the moment. Please try again.', 'error');
           return false;
         }
 
@@ -454,7 +454,7 @@
         return true;
       } catch (err) {
         console.error('Request OTP error:', err);
-        showModalStatus('Network error. Kripya apna internet connection check karein.', 'error');
+        showModalStatus('Network error. Please check your internet connection and try again.', 'error');
         return false;
       }
     }
@@ -516,7 +516,7 @@
             triggerWrongAttemptsLock(currentLimit.remainingSeconds);
           } else {
             showModalStatus(
-              `Incorrect OTP. Aapke paas iss minute mein <strong>${currentLimit.remainingAttempts}</strong> attempt(s) bache hain.`,
+              `Incorrect OTP. You have <strong>${currentLimit.remainingAttempts}</strong> attempt(s) remaining in this minute.`,
               'error'
             );
             if (modalOtpInput) {
@@ -849,7 +849,7 @@
       // Check resend limit before launching OTP
       const resendCheck = checkResendRateLimit();
       if (!resendCheck.allowed) {
-        alert(`Security limit: 1 minute mein maximum 3 baar OTP request kar sakte hain. Kripya ${resendCheck.remainingSeconds} seconds wait karein.`);
+        alert(`Security limit: Maximum 3 OTP requests allowed per minute. Please wait ${resendCheck.remainingSeconds} seconds.`);
         return;
       }
 
