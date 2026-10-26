@@ -1,5 +1,7 @@
 // Vercel Serverless Function: Verify OTP
 import crypto from 'crypto';
+import dotenv from 'dotenv';
+dotenv.config();
 
 // In-memory store for wrong OTP attempts (per IP + Mobile)
 const wrongAttemptsMap = new Map();

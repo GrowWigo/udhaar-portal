@@ -1,5 +1,7 @@
 // Vercel Serverless Function: Send OTP via PRP Bulk SMS API
 import crypto from 'crypto';
+import dotenv from 'dotenv';
+dotenv.config();
 
 // In-memory rate limiter store for sliding window
 // Global across invocations within the same lambda container
@@ -122,13 +124,20 @@ export default async function handler(req, res) {
         if (prpTemplateName) {
           // Endpoint 1: Send SMS using Template Name
           apiUrl = 'https://api.bulksmsadmin.com/BulkSMSapi/keyApiSendSMS/SendSmsTemplateName';
+          
+          // For 'reminder two' or multi-variable templates, pass both parameters
+          let params = otp;
+          if (prpTemplateName.toLowerCase() === 'reminder two') {
+            params = `${otp}~valid for 10 mins`;
+          }
+
           apiPayload = {
             sender: prpSender,
             templateName: prpTemplateName,
             smsReciever: [
               {
                 mobileNo: cleanMobile,
-                templateParams: otp,
+                templateParams: params,
               },
             ],
           };
@@ -155,11 +164,11 @@ export default async function handler(req, res) {
           apiUrl = 'https://api.bulksmsadmin.com/BulkSMSapi/keyApiSendSMS/SendSmsTemplateName';
           apiPayload = {
             sender: prpSender,
-            templateName: 'OTP',
+            templateName: 'reminder two',
             smsReciever: [
               {
                 mobileNo: cleanMobile,
-                templateParams: otp,
+                templateParams: `${otp}~valid for 10 mins`,
               },
             ],
           };
@@ -175,19 +184,21 @@ export default async function handler(req, res) {
         });
 
         gatewayResponse = await prpRes.json();
-        if (gatewayResponse && (gatewayResponse.status === 'success' || prpRes.ok)) {
+        if (gatewayResponse && (gatewayResponse.isSuccess === true || gatewayResponse.status === 'success')) {
           smsSuccess = true;
+          console.log(`[PRP SMS SENT] Live SMS successfully dispatched to +91 ${cleanMobile}. MsgId: ${gatewayResponse.data}`);
         } else {
           console.warn('PRP Gateway responded with error:', gatewayResponse);
         }
       } catch (gatewayErr) {
         console.error('Error invoking PRP Bulk SMS API:', gatewayErr);
       }
-    } else {
-      // Demo / Staging mode: Log OTP so testing can proceed seamlessly
+    }
+
+    if (!smsSuccess) {
+      // Demo fallback if SMS gateway fails or credentials missing
       isDemoMode = true;
-      smsSuccess = true;
-      console.log(`[PRP SMS DEMO MODE] Mobile: ${cleanMobile} | Generated OTP: ${otp}`);
+      console.log(`[PRP SMS DEMO FALLBACK] Mobile: ${cleanMobile} | Generated OTP: ${otp}`);
     }
 
     return res.status(200).json({
@@ -199,6 +210,7 @@ export default async function handler(req, res) {
       // In demo mode only, provide previewOtp for testing convenience
       previewOtp: isDemoMode ? otp : undefined,
     });
+
   } catch (err) {
     console.error('Server error in send-otp:', err);
     return res.status(500).json({
