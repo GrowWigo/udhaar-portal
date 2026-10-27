@@ -125,10 +125,30 @@ export default async function handler(req, res) {
         const aisensyPayload = {
           apiKey: aisensyApiKey,
           campaignName: aisensyCampaignName,
-          destination: `+91${cleanMobile}`,
+          destination: `91${cleanMobile}`,
           userName: (body.name || 'Applicant').trim(),
           templateParams: [otp],
-          source: 'Udhaar Portal Website',
+          source: 'new-landing-page form',
+          media: {},
+          buttons: [
+            {
+              type: 'button',
+              sub_type: 'url',
+              index: 0,
+              parameters: [
+                {
+                  type: 'text',
+                  text: otp,
+                },
+              ],
+            },
+          ],
+          carouselCards: [],
+          location: {},
+          attributes: {},
+          paramsFallbackValue: {
+            FirstName: 'user',
+          },
         };
 
         const aiRes = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
