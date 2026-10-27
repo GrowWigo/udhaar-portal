@@ -356,7 +356,7 @@
       if (modalBtnVerify) modalBtnVerify.setAttribute('disabled', 'disabled');
 
       showModalStatus(
-        `⚠️ <strong>Security Limit:</strong> Maximum 3 incorrect OTP attempts allowed per minute. Please wait <strong id="wrongSec">${seconds}</strong>s before trying again.`,
+        `⚠️ <strong>Security Limit:</strong> Maximum 3 incorrect attempts for this OTP. Please click <strong>Resend OTP</strong> for a new code, or wait <strong id="wrongSec">${seconds}</strong>s.`,
         'warning'
       );
 
@@ -451,9 +451,28 @@
         addTimestamp(OTP_RESEND_STORAGE_KEY);
         currentOtpToken = data.token;
 
+        // Reset previous wrong attempts timer and unlock inputs for the fresh OTP!
+        if (wrongAttemptsTimer) {
+          clearInterval(wrongAttemptsTimer);
+          wrongAttemptsTimer = null;
+        }
+        try {
+          sessionStorage.removeItem(OTP_WRONG_ATTEMPTS_STORAGE_KEY);
+        } catch (e) {}
+
+        if (modalOtpInput) {
+          modalOtpInput.removeAttribute('disabled');
+          modalOtpInput.value = '';
+          modalOtpInput.focus();
+        }
+        if (modalBtnVerify) {
+          modalBtnVerify.removeAttribute('disabled');
+          modalBtnVerify.classList.remove('is-loading');
+        }
+
         let statusText = data.channel === 'WhatsApp'
-          ? `✓ OTP has been sent on WhatsApp to +91 ${mobile}.`
-          : `✓ OTP has been sent to +91 ${mobile}.`;
+          ? `✓ New OTP has been sent on WhatsApp to +91 ${mobile}.`
+          : `✓ New OTP has been sent to +91 ${mobile}.`;
 
         if (data.demoMode && data.previewOtp) {
           statusText += ` <br><strong style="color: #047857;">[Test OTP: ${data.previewOtp}]</strong>`;

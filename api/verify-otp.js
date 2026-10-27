@@ -86,26 +86,38 @@ export default async function handler(req, res) {
       });
     }
 
-    // Rate Limiting on Wrong Attempts: Max 3 wrong attempts per minute per person
+    const [expiresAtStr, signature] = token.split('.');
+    const expiresAt = parseInt(expiresAtStr, 10);
+
+    // Rate Limiting:
+    // 1. Global IP+Mobile limit: Max 9 failed attempts per minute across all resends (anti brute-force)
     const clientIp =
       req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
       req.headers['x-real-ip'] ||
       req.socket?.remoteAddress ||
       'unknown-ip';
-    const attemptKey = `${clientIp}_${cleanMobile}`;
-
-    const limitCheck = checkWrongAttemptsLimit(attemptKey, 3, 60000);
-    if (!limitCheck.allowed) {
+    const globalAttemptKey = `global_${clientIp}_${cleanMobile}`;
+    const globalCheck = checkWrongAttemptsLimit(globalAttemptKey, 9, 60000);
+    if (!globalCheck.allowed) {
       return res.status(429).json({
         status: 'error',
         code: 'TOO_MANY_WRONG_ATTEMPTS',
-        message: `Security limit reached: Maximum 3 wrong OTP attempts allowed per minute. Please wait ${limitCheck.retryAfter} seconds before trying again.`,
-        retryAfter: limitCheck.retryAfter,
+        message: `Security limit reached: Maximum attempts exceeded. Please wait ${globalCheck.retryAfter} seconds before trying again.`,
+        retryAfter: globalCheck.retryAfter,
       });
     }
 
-    const [expiresAtStr, signature] = token.split('.');
-    const expiresAt = parseInt(expiresAtStr, 10);
+    // 2. Per-Token limit: Max 3 wrong attempts per individual OTP code
+    const tokenAttemptKey = `tok_${cleanMobile}_${signature}`;
+    const tokenCheck = checkWrongAttemptsLimit(tokenAttemptKey, 3, 60000);
+    if (!tokenCheck.allowed) {
+      return res.status(429).json({
+        status: 'error',
+        code: 'TOO_MANY_WRONG_ATTEMPTS',
+        message: `Security limit reached: Maximum 3 incorrect attempts for this OTP. Please click Resend OTP to get a new code.`,
+        retryAfter: tokenCheck.retryAfter,
+      });
+    }
 
     // Check expiration
     if (isNaN(expiresAt) || Date.now() > expiresAt) {
@@ -130,19 +142,20 @@ export default async function handler(req, res) {
     );
 
     if (!isValid) {
-      const remainingAttempts = recordWrongAttempt(attemptKey, 60000);
+      recordWrongAttempt(globalAttemptKey, 60000);
+      const remainingAttempts = recordWrongAttempt(tokenAttemptKey, 60000);
       return res.status(400).json({
         status: 'error',
         code: 'INVALID_OTP',
         message: remainingAttempts > 0
-          ? `Incorrect OTP. You have ${remainingAttempts} attempt(s) remaining in this minute.`
-          : 'Security limit reached: You have entered incorrect OTP 3 times. Please wait 60 seconds.',
+          ? `Incorrect OTP. You have ${remainingAttempts} attempt(s) remaining for this code.`
+          : 'Security limit reached: You have entered incorrect OTP 3 times. Please click Resend OTP for a new code.',
         remainingAttempts,
       });
     }
 
     // Success! Clear wrong attempts
-    clearWrongAttempts(attemptKey);
+    clearWrongAttempts(tokenAttemptKey);
 
     const verifiedAt = Date.now();
     const verificationProof = crypto
