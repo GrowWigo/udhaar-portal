@@ -125,7 +125,7 @@ export default async function handler(req, res) {
         const aisensyPayload = {
           apiKey: aisensyApiKey,
           campaignName: aisensyCampaignName,
-          destination: `91${cleanMobile}`,
+          destination: `+91${cleanMobile}`,
           userName: (body.name || 'Applicant').trim(),
           templateParams: [otp],
           source: 'Udhaar Portal Website',
