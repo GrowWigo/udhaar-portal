@@ -104,75 +104,71 @@ export default async function handler(req, res) {
       .digest('hex');
     const token = `${expiresAt}.${signature}`;
 
-    // PRP SMS Configuration
+    const aisensyApiKey = process.env.AISENSY_API_KEY;
+    const aisensyCampaignName = process.env.AISENSY_CAMPAIGN_NAME || 'otp verification api campaign';
+
+    // PRP SMS Configuration (Fallback)
     const prpApiKey = process.env.PRP_API_KEY;
-    const prpSender = process.env.PRP_SENDER || 'PRPSMS';
+    const prpSender = process.env.PRP_SENDER || 'UDHPAY';
     const prpTemplateName = process.env.PRP_TEMPLATE_NAME;
     const prpTeId = process.env.PRP_TE_ID;
     const prpPeId = process.env.PRP_PE_ID;
     const prpMessage = process.env.PRP_MESSAGE;
 
-    let smsSuccess = false;
-    let gatewayResponse = null;
+    let dispatchSuccess = false;
+    let channel = 'WhatsApp';
     let isDemoMode = false;
 
-    if (prpApiKey && prpApiKey !== 'YOUR_PRP_API_KEY' && !prpApiKey.includes('***')) {
+    // 1. PRIMARY: AiSensy WhatsApp API
+    if (aisensyApiKey && !aisensyApiKey.includes('YOUR_')) {
       try {
-        let apiUrl = '';
-        let apiPayload = null;
+        const aisensyPayload = {
+          apiKey: aisensyApiKey,
+          campaignName: aisensyCampaignName,
+          destination: `91${cleanMobile}`,
+          userName: (body.name || 'Applicant').trim(),
+          templateParams: [otp],
+          source: 'Udhaar Portal Website',
+        };
 
-        if (prpTemplateName) {
-          // Endpoint 1: Send SMS using Template Name
-          apiUrl = 'https://api.bulksmsadmin.com/BulkSMSapi/keyApiSendSMS/SendSmsTemplateName';
-          
-          // For 'reminder two' or multi-variable templates, pass both parameters
-          let params = otp;
-          if (prpTemplateName.toLowerCase() === 'reminder two') {
-            params = `${otp}~valid for 10 mins`;
-          }
+        const aiRes = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(aisensyPayload),
+        });
 
-          apiPayload = {
-            sender: prpSender,
-            templateName: prpTemplateName,
-            smsReciever: [
-              {
-                mobileNo: cleanMobile,
-                templateParams: params,
-              },
-            ],
-          };
-        } else if (prpTeId && prpPeId) {
-          // Endpoint 2: Send SMS using Template ID & PE ID
-          apiUrl = 'https://api.bulksmsadmin.com/BulkSMSapi/keyApiSendSMS/sendSMS';
-          const messageContent = (
-            prpMessage || 'Your OTP for Udhaar Portal loan application is {#var#}. Valid for 10 mins.'
-          ).replace('{#var#}', otp);
-
-          apiPayload = {
-            sender: prpSender,
-            peId: prpPeId,
-            teId: prpTeId,
-            message: messageContent,
-            smsReciever: [
-              {
-                reciever: cleanMobile,
-              },
-            ],
-          };
+        const aiData = await aiRes.json();
+        if (aiData && (aiData.success === 'true' || aiData.success === true)) {
+          dispatchSuccess = true;
+          channel = 'WhatsApp';
+          console.log(`[AISENSY WHATSAPP SENT] OTP successfully dispatched to +91 ${cleanMobile}. MsgId: ${aiData.submitted_message_id}`);
         } else {
-          // Fallback to Template Name endpoint with default template
-          apiUrl = 'https://api.bulksmsadmin.com/BulkSMSapi/keyApiSendSMS/SendSmsTemplateName';
-          apiPayload = {
-            sender: prpSender,
-            templateName: 'reminder two',
-            smsReciever: [
-              {
-                mobileNo: cleanMobile,
-                templateParams: `${otp}~valid for 10 mins`,
-              },
-            ],
-          };
+          console.warn('[AISENSY WHATSAPP ERROR] Failed to dispatch via AiSensy:', aiData);
         }
+      } catch (aiErr) {
+        console.error('Error invoking AiSensy API:', aiErr);
+      }
+    }
+
+    // 2. FALLBACK: PRP Bulk SMS API (if AiSensy was not configured or failed)
+    if (!dispatchSuccess && prpApiKey && prpApiKey !== 'YOUR_PRP_API_KEY' && !prpApiKey.includes('***')) {
+      try {
+        let apiUrl = 'https://api.bulksmsadmin.com/BulkSMSapi/keyApiSendSMS/SendSmsTemplateName';
+        let params = otp;
+        if (prpTemplateName && prpTemplateName.toLowerCase() === 'reminder two') {
+          params = `${otp}~valid for 10 mins`;
+        }
+
+        const prpPayload = {
+          sender: prpSender,
+          templateName: prpTemplateName || 'reminder two',
+          smsReciever: [
+            {
+              mobileNo: cleanMobile,
+              templateParams: params,
+            },
+          ],
+        };
 
         const prpRes = await fetch(apiUrl, {
           method: 'POST',
@@ -180,12 +176,13 @@ export default async function handler(req, res) {
             apikey: prpApiKey,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(apiPayload),
+          body: JSON.stringify(prpPayload),
         });
 
-        gatewayResponse = await prpRes.json();
+        const gatewayResponse = await prpRes.json();
         if (gatewayResponse && (gatewayResponse.isSuccess === true || gatewayResponse.status === 'success')) {
-          smsSuccess = true;
+          dispatchSuccess = true;
+          channel = 'SMS';
           console.log(`[PRP SMS SENT] Live SMS successfully dispatched to +91 ${cleanMobile}. MsgId: ${gatewayResponse.data}`);
         } else {
           console.warn('PRP Gateway responded with error:', gatewayResponse);
@@ -195,19 +192,21 @@ export default async function handler(req, res) {
       }
     }
 
-    if (!smsSuccess) {
-      // Demo fallback if SMS gateway fails or credentials missing
+    // 3. FALLBACK: Demo / Staging Mode (if both failed)
+    if (!dispatchSuccess) {
       isDemoMode = true;
-      console.log(`[PRP SMS DEMO FALLBACK] Mobile: ${cleanMobile} | Generated OTP: ${otp}`);
+      console.log(`[OTP DEMO FALLBACK] Mobile: ${cleanMobile} | Generated OTP: ${otp}`);
     }
 
     return res.status(200).json({
       status: 'success',
-      message: `OTP has been sent to +91 ${cleanMobile}.`,
+      channel,
+      message: channel === 'WhatsApp'
+        ? `OTP has been sent on WhatsApp to +91 ${cleanMobile}.`
+        : `OTP has been sent to +91 ${cleanMobile}.`,
       token,
       expiresAt,
       demoMode: isDemoMode,
-      // In demo mode only, provide previewOtp for testing convenience
       previewOtp: isDemoMode ? otp : undefined,
     });
 

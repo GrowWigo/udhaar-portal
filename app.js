@@ -422,10 +422,17 @@
       }
 
       try {
+        const applicantName = pendingFormPayload
+          ? `${pendingFormPayload.firstName || ''} ${pendingFormPayload.lastName || ''}`.trim()
+          : '';
+
         const resp = await fetch('/api/send-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mobileNumber: mobile }),
+          body: JSON.stringify({
+            mobileNumber: mobile,
+            name: applicantName || 'Applicant',
+          }),
         });
 
         const data = await resp.json();
@@ -444,7 +451,10 @@
         addTimestamp(OTP_RESEND_STORAGE_KEY);
         currentOtpToken = data.token;
 
-        let statusText = `OTP successfully sent to +91 ${mobile}.`;
+        let statusText = data.channel === 'WhatsApp'
+          ? `✓ OTP has been sent on WhatsApp to +91 ${mobile}.`
+          : `✓ OTP has been sent to +91 ${mobile}.`;
+
         if (data.demoMode && data.previewOtp) {
           statusText += ` <br><strong style="color: #047857;">[Test OTP: ${data.previewOtp}]</strong>`;
         }
