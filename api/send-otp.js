@@ -81,13 +81,13 @@ export default async function handler(req, res) {
       'unknown-ip';
     const rateLimitKey = `${clientIp}_${cleanMobile}`;
 
-    // Rate Limit: Strictly maximum 3 OTP requests per minute
-    const limitCheck = checkRateLimit(rateLimitKey, 3, 60000);
+    // Rate Limit: Strictly maximum 5 OTP requests per 5 minutes
+    const limitCheck = checkRateLimit(rateLimitKey, 5, 300000);
     if (!limitCheck.allowed) {
       return res.status(429).json({
         status: 'error',
         code: 'RATE_LIMIT_EXCEEDED',
-        message: `Security limit reached: Maximum 3 OTP requests allowed per minute. Please try again in ${limitCheck.retryAfterSeconds} seconds.`,
+        message: `Security limit reached: Maximum 5 OTP requests allowed per 5 minutes. Please try again in ${limitCheck.retryAfterSeconds} seconds.`,
         retryAfter: limitCheck.retryAfterSeconds,
       });
     }

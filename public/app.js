@@ -280,14 +280,14 @@
 
     // ==========================================
     // RATE LIMITING CONFIGURATION
-    // 1. Resend: Max 3 times per minute
-    // 2. Wrong OTP: Max 3 times per minute
+    // 1. Resend: Max 5 times per 5 minutes
+    // 2. Wrong OTP: Max 3 attempts per OTP code
     // ==========================================
     const OTP_RESEND_STORAGE_KEY = 'udhaar_otp_resend_times';
     const OTP_WRONG_ATTEMPTS_STORAGE_KEY = 'udhaar_otp_wrong_times';
-    const RATE_WINDOW_MS = 60000;
-    const MAX_RESEND_PER_MIN = 3;
-    const MAX_WRONG_ATTEMPTS_PER_MIN = 3;
+    const RATE_WINDOW_MS = 300000; // 5 minutes
+    const MAX_RESEND_PER_WINDOW = 5;
+    const MAX_WRONG_ATTEMPTS_PER_WINDOW = 3;
 
     function getWindowTimestamps(key) {
       try {
@@ -311,22 +311,22 @@
 
     function checkResendRateLimit() {
       const list = getWindowTimestamps(OTP_RESEND_STORAGE_KEY);
-      if (list.length >= MAX_RESEND_PER_MIN) {
+      if (list.length >= MAX_RESEND_PER_WINDOW) {
         const oldest = list[0];
         const remainingSeconds = Math.max(1, Math.ceil((RATE_WINDOW_MS - (Date.now() - oldest)) / 1000));
         return { allowed: false, remainingSeconds };
       }
-      return { allowed: true, remainingAttempts: MAX_RESEND_PER_MIN - list.length };
+      return { allowed: true, remainingAttempts: MAX_RESEND_PER_WINDOW - list.length };
     }
 
     function checkWrongAttemptsLimit() {
       const list = getWindowTimestamps(OTP_WRONG_ATTEMPTS_STORAGE_KEY);
-      if (list.length >= MAX_WRONG_ATTEMPTS_PER_MIN) {
+      if (list.length >= MAX_WRONG_ATTEMPTS_PER_WINDOW) {
         const oldest = list[0];
-        const remainingSeconds = Math.max(1, Math.ceil((RATE_WINDOW_MS - (Date.now() - oldest)) / 1000));
+        const remainingSeconds = Math.max(1, Math.ceil((60000 - (Date.now() - oldest)) / 1000));
         return { allowed: false, remainingSeconds };
       }
-      return { allowed: true, remainingAttempts: MAX_WRONG_ATTEMPTS_PER_MIN - list.length };
+      return { allowed: true, remainingAttempts: MAX_WRONG_ATTEMPTS_PER_WINDOW - list.length };
     }
 
     function showModalStatus(msg, type = 'error') {
@@ -403,7 +403,7 @@
           } else {
             if (modalResendTimerText) {
               modalResendTimerText.style.display = 'inline';
-              modalResendTimerText.innerHTML = `⚠️ Wait <strong>${limit.remainingSeconds}</strong>s to resend (max 3/min)`;
+              modalResendTimerText.innerHTML = `⚠️ Wait <strong>${limit.remainingSeconds}</strong>s to resend (max 5/5min)`;
             }
           }
         }
@@ -415,7 +415,7 @@
       const resendCheck = checkResendRateLimit();
       if (!resendCheck.allowed) {
         showModalStatus(
-          `⚠️ <strong>Security Limit:</strong> Maximum 3 OTP requests allowed per minute. Please wait ${resendCheck.remainingSeconds}s before requesting again.`,
+          `⚠️ <strong>Security Limit:</strong> Maximum 5 OTP requests allowed per 5 minutes. Please wait ${resendCheck.remainingSeconds}s before requesting again.`,
           'warning'
         );
         return false;
@@ -438,7 +438,7 @@
         const data = await resp.json();
 
         if (resp.status === 429) {
-          showModalStatus(data.message || 'Security limit: Maximum 3 OTP requests per minute allowed.', 'warning');
+          showModalStatus(data.message || 'Security limit: Maximum 5 OTP requests per 5 minutes allowed.', 'warning');
           return false;
         }
 
@@ -875,7 +875,7 @@
       // Check resend limit before launching OTP
       const resendCheck = checkResendRateLimit();
       if (!resendCheck.allowed) {
-        alert(`Security limit: Maximum 3 OTP requests allowed per minute. Please wait ${resendCheck.remainingSeconds} seconds.`);
+        alert(`Security limit: Maximum 5 OTP requests allowed per 5 minutes. Please wait ${resendCheck.remainingSeconds} seconds.`);
         return;
       }
 

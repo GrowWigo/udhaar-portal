@@ -97,7 +97,7 @@ export default async function handler(req, res) {
       req.socket?.remoteAddress ||
       'unknown-ip';
     const globalAttemptKey = `global_${clientIp}_${cleanMobile}`;
-    const globalCheck = checkWrongAttemptsLimit(globalAttemptKey, 9, 60000);
+    const globalCheck = checkWrongAttemptsLimit(globalAttemptKey, 15, 300000);
     if (!globalCheck.allowed) {
       return res.status(429).json({
         status: 'error',
