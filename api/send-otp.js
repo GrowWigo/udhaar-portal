@@ -104,20 +104,21 @@ export default async function handler(req, res) {
       .digest('hex');
     const token = `${expiresAt}.${signature}`;
 
-    const aisensyApiKey = process.env.AISENSY_API_KEY;
+    const aisensyApiKey =
+      process.env.AISENSY_API_KEY ||
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhMTUzOWYxYzQyOTNiMmM2ZmRhMDY5MSIsIm5hbWUiOiJVbmlmaW4gRXhwZXJ0cyBMTFAiLCJhcHBOYW1lIjoiQWlTZW5zeSIsImNsaWVudElkIjoiNmExNTM5ZjFjNDI5M2IyYzZmZGEwNjhjIiwiYWN0aXZlUGxhbiI6IlBST19RVUFSVEVSTFkiLCJpYXQiOjE3OTMxMDEzNDh9.jHvk09-AH36o4lE5fA6IbjHytGTZtpmp6I2111OpBCU';
     const aisensyCampaignName = process.env.AISENSY_CAMPAIGN_NAME || 'otp verification api campaign';
 
     // PRP SMS Configuration (Fallback)
-    const prpApiKey = process.env.PRP_API_KEY;
+    const prpApiKey = process.env.PRP_API_KEY || 'kDaSc33XIFvl2b3';
     const prpSender = process.env.PRP_SENDER || 'UDHPAY';
-    const prpTemplateName = process.env.PRP_TEMPLATE_NAME;
-    const prpTeId = process.env.PRP_TE_ID;
+    const prpTemplateName = process.env.PRP_TEMPLATE_NAME || 'reminder two';
+    const prpTeId = process.env.PRP_TE_ID || '1707178152964344728';
     const prpPeId = process.env.PRP_PE_ID;
     const prpMessage = process.env.PRP_MESSAGE;
 
     let dispatchSuccess = false;
     let channel = 'WhatsApp';
-    let isDemoMode = false;
 
     // 1. PRIMARY: AiSensy WhatsApp API
     if (aisensyApiKey && !aisensyApiKey.includes('YOUR_')) {
@@ -212,10 +213,13 @@ export default async function handler(req, res) {
       }
     }
 
-    // 3. FALLBACK: Demo / Staging Mode (if both failed)
+    // 3. If delivery failed on both gateways, return clear error instead of fake OTP
     if (!dispatchSuccess) {
-      isDemoMode = true;
-      console.log(`[OTP DEMO FALLBACK] Mobile: ${cleanMobile} | Generated OTP: ${otp}`);
+      console.error(`[OTP DISPATCH FAILED] Both AiSensy and PRP failed to deliver OTP to +91 ${cleanMobile}`);
+      return res.status(502).json({
+        status: 'error',
+        message: 'Unable to deliver OTP via WhatsApp or SMS at the moment. Please verify your mobile number or try again.',
+      });
     }
 
     return res.status(200).json({
@@ -226,8 +230,6 @@ export default async function handler(req, res) {
         : `OTP has been sent to +91 ${cleanMobile}.`,
       token,
       expiresAt,
-      demoMode: isDemoMode,
-      previewOtp: isDemoMode ? otp : undefined,
     });
 
   } catch (err) {

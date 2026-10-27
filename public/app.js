@@ -470,13 +470,10 @@
           modalBtnVerify.classList.remove('is-loading');
         }
 
-        let statusText = data.channel === 'WhatsApp'
+        const statusText = data.channel === 'WhatsApp'
           ? `✓ New OTP has been sent on WhatsApp to +91 ${mobile}.`
           : `✓ New OTP has been sent to +91 ${mobile}.`;
 
-        if (data.demoMode && data.previewOtp) {
-          statusText += ` <br><strong style="color: #047857;">[Test OTP: ${data.previewOtp}]</strong>`;
-        }
         showModalStatus(statusText, 'success');
 
         startModalResendTimer(30);
