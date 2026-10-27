@@ -584,9 +584,6 @@
       modalOtpInput.addEventListener('input', function (e) {
         const val = e.target.value.replace(/\D/g, '').slice(0, 6);
         if (e.target.value !== val) e.target.value = val;
-        if (val.length === 6) {
-          verifyAndSubmitOtp();
-        }
       });
       modalOtpInput.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') {
