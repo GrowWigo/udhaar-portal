@@ -2,6 +2,32 @@
 <html lang="en">
 
 <head>
+  <!-- Google Tag Manager -->
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+  })(window,document,'script','dataLayer','GTM-MK9SDW4Z');</script>
+  <!-- End Google Tag Manager -->
+
+  <!-- Google tag (gtag.js) GA4 -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-G3NNT2FYNQ"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-G3NNT2FYNQ');
+  </script>
+
+  <!-- Microsoft Clarity -->
+  <script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "tfqc11w1m2");
+  </script>
+
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Application Pre-Approved - Udhaar Portal</title>
@@ -39,7 +65,13 @@
       const STORAGE_KEY = 'udhaar_ads_conv_qualified_fired';
       if (!sessionStorage.getItem(STORAGE_KEY)) {
         sessionStorage.setItem(STORAGE_KEY, 'true');
-        // Trigger the Google Ads conversion event once:
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({
+          event: 'lead_qualified',
+          conversion_type: 'qualified_lead',
+          page_type: 'thank_you_qualified'
+        });
+        // Trigger Google Ads conversion event once:
         /*
         if (typeof gtag === 'function') {
           gtag('event', 'conversion', {
@@ -58,6 +90,10 @@
 </head>
 
 <body>
+  <!-- Google Tag Manager (noscript) -->
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-MK9SDW4Z"
+  height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <!-- End Google Tag Manager (noscript) -->
   <!-- Header -->
   <header class="site-header site-header-centered" role="banner">
     <div class="container header-inner" style="justify-content: center;">
