@@ -168,6 +168,15 @@
       const salaryAmount = payload.salaryAmount || (rawSalaryDigits ? parseInt(rawSalaryDigits, 10) : 0);
       const readableSalary = payload.monthlySalary || (salaryAmount ? '₹' + salaryAmount.toLocaleString('en-IN') : '');
 
+      // Strict Lead Qualification Rules:
+      // ONLY Salaried persons with monthly salary >= ₹35,000 qualify -> thank-you-qualified.html
+      // Self-Employed (any salary) OR Salary < ₹35,000 -> thank-you-standard.html
+      const empType = (payload.employmentType || '').toString().trim().toLowerCase();
+      const isSalaried = empType === 'salaried';
+      const isSalaryQualified = !isNaN(salaryAmount) && salaryAmount >= 35000;
+      const isQualified = isSalaried && isSalaryQualified;
+      const qualificationStatus = isQualified ? 'Qualified' : 'Unqualified';
+
       const leadRecord = {
         lead_id: leadId,
         created_at: new Date().toISOString(),
@@ -190,7 +199,9 @@
           employmentType: payload.employmentType || '',
           panNumber: payload.panNumber,
           city: payload.city,
-          submittedAt: payload.submittedAt
+          submittedAt: payload.submittedAt,
+          isQualified: isQualified,
+          qualificationStatus: qualificationStatus
         },
         lead_source: tracking.utm_source ? 'Campaign' : 'Website - Loan Application',
         utm_source: tracking.utm_source || '',
@@ -200,8 +211,8 @@
         utm_content: tracking.utm_content || '',
         gclid: tracking.gclid || '',
         documents: [],
-        lead_status: 'New Lead',
-        status: 'New Lead',
+        lead_status: qualificationStatus,
+        status: qualificationStatus,
         document_status: 'Pending',
         is_mobile_verified: true,
         otp_verified: true,
@@ -223,10 +234,9 @@
         console.warn('Storage unavailable', storageErr);
       }
 
-      // Qualification rules:
-      // Salary < ₹35,000 -> thank-you-standard.html
-      // Salary >= ₹35,000 -> thank-you-qualified.html
-      const isQualified = !isNaN(salaryAmount) && salaryAmount >= 35000;
+      // Qualification routing:
+      // Salaried & Salary >= ₹35,000 -> thank-you-qualified.html
+      // Self-Employed or Salary < ₹35,000 -> thank-you-standard.html
       const targetPage = isQualified ? 'thank-you-qualified.html' : 'thank-you-standard.html';
 
       // Redirect with lead_id parameter
