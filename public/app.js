@@ -234,10 +234,10 @@
         console.warn('Storage unavailable', storageErr);
       }
 
-      // Qualification routing:
-      // Salaried & Salary >= ₹35,000 -> thank-you-qualified.html
-      // Self-Employed or Salary < ₹35,000 -> thank-you-standard.html
-      const targetPage = isQualified ? 'thank-you-qualified.html' : 'thank-you-standard.html';
+      // Qualification routing (Clean URLs without .html):
+      // Salaried & Salary >= ₹35,000 -> /thank-you-qualified
+      // Self-Employed or Salary < ₹35,000 -> /thank-you-standard
+      const targetPage = isQualified ? '/thank-you-qualified' : '/thank-you-standard';
 
       // Redirect with lead_id parameter
       window.location.href = `${targetPage}?lead_id=${encodeURIComponent(leadId)}`;

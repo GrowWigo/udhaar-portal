@@ -1,0 +1,14 @@
+{
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    {
+      "source": "/thank-you-qualified",
+      "destination": "/thank-you-qualified.html"
+    },
+    {
+      "source": "/thank-you-standard",
+      "destination": "/thank-you-standard.html"
+    }
+  ]
+}

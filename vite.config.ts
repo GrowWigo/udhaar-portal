@@ -27,6 +27,14 @@ export default defineConfig(() => {
         name: 'otp-api-dev-middleware',
         configureServer(server) {
           server.middlewares.use(async (req, res, next) => {
+            if (req.url) {
+              if (req.url.startsWith('/thank-you-qualified') && !req.url.startsWith('/thank-you-qualified.html')) {
+                req.url = req.url.replace('/thank-you-qualified', '/thank-you-qualified.html');
+              } else if (req.url.startsWith('/thank-you-standard') && !req.url.startsWith('/thank-you-standard.html')) {
+                req.url = req.url.replace('/thank-you-standard', '/thank-you-standard.html');
+              }
+            }
+
             if (req.url === '/api/send-otp' || req.url === '/api/verify-otp') {
               let body = '';
               req.on('data', (chunk) => {
