@@ -546,7 +546,12 @@
 
         const statusText = data.channel === 'WhatsApp'
           ? `✓ New OTP has been sent on WhatsApp to +91 ${mobile}.`
-          : `✓ New OTP has been sent to +91 ${mobile}.`;
+          : `✓ New OTP has been sent via SMS to +91 ${mobile}.`;
+
+        const subtitleEl = document.querySelector('.otp-modal-subtitle');
+        if (subtitleEl) {
+          subtitleEl.innerHTML = `Enter the 6-digit OTP sent via <strong>${data.channel || 'SMS'}</strong> to <strong id="modalPhoneDisplay">+91 ${mobile}</strong>`;
+        }
 
         showModalStatus(statusText, 'success');
 
