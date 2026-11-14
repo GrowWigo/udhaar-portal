@@ -59,6 +59,10 @@ CREATE INDEX IF NOT EXISTS idx_leads_lead_id ON public.leads (lead_id);
 CREATE INDEX IF NOT EXISTS idx_leads_mobile ON public.leads (mobile_number);
 CREATE INDEX IF NOT EXISTS idx_leads_created_at ON public.leads (created_at DESC);
 
+-- Step 2.1: Duplicate Lead Filter (Fast lookup by 10-digit mobile number)
+-- To prevent duplicate lead creation, the application checks idx_leads_mobile before insert.
+-- If existing mobile is found, it updates the existing record with reapplied_at instead of creating duplicates.
+
 -- Step 3: Enable Row Level Security (RLS) on leads table
 ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
 

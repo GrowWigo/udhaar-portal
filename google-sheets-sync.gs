@@ -136,13 +136,18 @@ function doPost(e) {
     ];
 
     const leadId = record.lead_id;
+    const cleanMobile = record.mobile_number ? String(record.mobile_number).replace(/\D/g, '').slice(-10) : "";
     let foundRow = -1;
 
-    // 4. Check if Lead ID already exists (for UPDATE events on document upload)
-    if (leadId && sheet.getLastRow() > 1) {
-      const leadIdColumn = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
-      for (let i = 0; i < leadIdColumn.length; i++) {
-        if (String(leadIdColumn[i][0]).trim() === String(leadId).trim()) {
+    // 4. DUPLICATE LEAD FILTER: Check if Lead ID OR Mobile Number already exists in the sheet
+    if (sheet.getLastRow() > 1) {
+      const dataRows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).getValues();
+      for (let i = 0; i < dataRows.length; i++) {
+        const rowLeadId = String(dataRows[i][0] || '').trim();
+        const rowMobile = String(dataRows[i][3] || '').replace(/\D/g, '').slice(-10);
+
+        // Match if Lead ID matches OR 10-digit mobile number matches!
+        if ((leadId && rowLeadId === String(leadId).trim()) || (cleanMobile && cleanMobile.length === 10 && rowMobile === cleanMobile)) {
           foundRow = i + 2;
           break;
         }
@@ -151,14 +156,19 @@ function doPost(e) {
 
     if (foundRow > 0) {
       // Update existing lead row with new document links and status
-      // Preserve existing create date if not provided
+      // Preserve existing create date so original application date is kept intact
       const existingDate = sheet.getRange(foundRow, 2).getValue();
-      if (existingDate && !createDateOnly) {
+      if (existingDate) {
         rowData[1] = existingDate;
+      }
+      // Preserve original Lead ID if matched by mobile number
+      const existingLeadId = sheet.getRange(foundRow, 1).getValue();
+      if (existingLeadId) {
+        rowData[0] = existingLeadId;
       }
       sheet.getRange(foundRow, 1, 1, rowData.length).setValues([rowData]);
     } else {
-      // Append new lead row
+      // Append new lead row only if not duplicate
       sheet.appendRow(rowData);
     }
 

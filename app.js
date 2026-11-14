@@ -284,23 +284,27 @@
         verified_at: new Date().toISOString()
       };
 
-      // Persist in Supabase
+      let finalLeadId = leadId;
+      // Persist in Supabase (with Duplicate Filter protection)
       if (window.UdhaarSupabase && typeof window.UdhaarSupabase.saveLead === 'function') {
         const supabaseResult = await window.UdhaarSupabase.saveLead(leadRecord);
-        console.info('Supabase Qualified Lead Saved:', supabaseResult);
+        console.info('Supabase Qualified Lead Result:', supabaseResult);
+        if (supabaseResult && supabaseResult.lead_id) {
+          finalLeadId = supabaseResult.lead_id;
+        }
       }
 
       // Store in storage for document upload correlation
       try {
-        sessionStorage.setItem('udhaar_active_lead_id', leadId);
-        localStorage.setItem('udhaar_active_lead_id', leadId);
-        sessionStorage.setItem('udhaar_lead_data', JSON.stringify(leadRecord));
+        sessionStorage.setItem('udhaar_active_lead_id', finalLeadId);
+        localStorage.setItem('udhaar_active_lead_id', finalLeadId);
+        sessionStorage.setItem('udhaar_lead_data', JSON.stringify({ ...leadRecord, lead_id: finalLeadId }));
       } catch (storageErr) {
         console.warn('Storage unavailable', storageErr);
       }
 
       // Redirect qualified lead with lead_id parameter to /thank-you-qualified
-      window.location.href = `/thank-you-qualified?lead_id=${encodeURIComponent(leadId)}`;
+      window.location.href = `/thank-you-qualified?lead_id=${encodeURIComponent(finalLeadId)}`;
     } catch (err) {
       console.error('Submission error:', err);
       if (submitBtn) {

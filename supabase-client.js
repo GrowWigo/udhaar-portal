@@ -81,6 +81,83 @@ async function saveLeadToSupabase(leadData) {
       document_status: 'Pending'
     };
 
+    // ==========================================
+    // DUPLICATE LEAD FILTER
+    // Check if mobile number already exists in Supabase
+    // ==========================================
+    const cleanMobile = (payload.mobile_number || '').toString().replace(/\D/g, '').slice(-10);
+    let existingLead = null;
+
+    if (cleanMobile && cleanMobile.length === 10) {
+      try {
+        const filterUrl = `${SUPABASE_CONFIG.url}/rest/v1/leads?or=(mobile_number.eq.${cleanMobile},mobile_number.eq.91${cleanMobile},mobile_number.eq.%2B91${cleanMobile})&select=id,lead_id,created_at,full_name,documents,form_details,lead_status,status&order=created_at.desc&limit=1`;
+        const checkRes = await fetch(filterUrl, {
+          method: 'GET',
+          headers: getHeaders()
+        });
+        if (checkRes.ok) {
+          const rows = await checkRes.json();
+          if (Array.isArray(rows) && rows.length > 0) {
+            existingLead = rows[0];
+          }
+        }
+      } catch (checkErr) {
+        console.warn('Duplicate lead check notice:', checkErr);
+      }
+    }
+
+    // IF DUPLICATE LEAD FOUND:
+    // Update existing lead record in-place instead of creating a new duplicate lead!
+    if (existingLead && existingLead.lead_id) {
+      const existingLeadId = existingLead.lead_id;
+      console.info(`[DUPLICATE FILTER] Re-application detected for +91 ${cleanMobile}. Updating existing Lead ID ${existingLeadId} without creating duplicate.`);
+
+      const updatePayload = {
+        updated_at: new Date().toISOString(),
+        first_name: payload.first_name || existingLead.first_name,
+        last_name: payload.last_name || existingLead.last_name,
+        full_name: payload.full_name || existingLead.full_name,
+        email: payload.email,
+        monthly_salary: payload.monthly_salary,
+        employment_type: payload.employment_type,
+        pan_number: payload.pan_number,
+        city: payload.city,
+        lead_status: payload.lead_status || existingLead.lead_status || 'Qualified',
+        status: payload.status || existingLead.status || 'Qualified',
+        form_details: {
+          ...(existingLead.form_details || {}),
+          ...(payload.form_details || {}),
+          reapplied_at: new Date().toISOString(),
+          is_duplicate_prevented: true
+        }
+      };
+
+      try {
+        sessionStorage.setItem('udhaar_active_lead_id', existingLeadId);
+        localStorage.setItem('udhaar_active_lead_id', existingLeadId);
+        sessionStorage.setItem('udhaar_lead_payload', JSON.stringify({ ...updatePayload, lead_id: existingLeadId }));
+      } catch (e) {}
+
+      let updateRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/leads?id=eq.${existingLead.id}`, {
+        method: 'PATCH',
+        headers: getHeaders({ 'Prefer': 'return=representation' }),
+        body: JSON.stringify(updatePayload)
+      });
+
+      let updatedData = null;
+      if (updateRes.ok) {
+        updatedData = await updateRes.json();
+      }
+
+      return {
+        success: true,
+        lead_id: existingLeadId,
+        is_duplicate: true,
+        data: updatedData
+      };
+    }
+
+    // If not duplicate, create new lead record
     // Save leadId in session storage for thank you page tracking
     try {
       sessionStorage.setItem('udhaar_active_lead_id', leadId);
