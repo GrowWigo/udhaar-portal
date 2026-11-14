@@ -195,7 +195,15 @@
     }
   }
 
+  let isSubmittingLead = false;
+
   async function submitLead(payload) {
+    if (isSubmittingLead) {
+      console.warn('Submission already in progress. Ignoring duplicate trigger.');
+      return;
+    }
+    isSubmittingLead = true;
+
     const submitBtn = document.getElementById('submitBtn');
     if (submitBtn) {
       submitBtn.classList.add('is-loading');
@@ -228,6 +236,7 @@
       // 3. Close the OTP modal if open
       // 4. Show on-page confirmation UI: "Application Submitted"
       if (!isQualified) {
+        isSubmittingLead = false;
         const overlay = document.getElementById('otpModalOverlay');
         if (overlay) overlay.classList.remove('active');
         showFormSuccessState(payload);
@@ -306,6 +315,7 @@
       // Redirect qualified lead with lead_id parameter to /thank-you-qualified
       window.location.href = `/thank-you-qualified?lead_id=${encodeURIComponent(finalLeadId)}`;
     } catch (err) {
+      isSubmittingLead = false;
       console.error('Submission error:', err);
       if (submitBtn) {
         submitBtn.classList.remove('is-loading');
@@ -566,6 +576,7 @@
 
     // Verify OTP Handler
     async function verifyAndSubmitOtp() {
+      if (isSubmittingLead) return;
       clearModalStatus();
 
       // Check wrong attempts limit
@@ -602,18 +613,21 @@
 
         const data = await resp.json();
 
-        if (modalBtnVerify) {
-          modalBtnVerify.classList.remove('is-loading');
-          modalBtnVerify.removeAttribute('disabled');
-        }
-
         if (resp.status === 429) {
+          if (modalBtnVerify) {
+            modalBtnVerify.classList.remove('is-loading');
+            modalBtnVerify.removeAttribute('disabled');
+          }
           // Locked due to 3 wrong attempts
           triggerWrongAttemptsLock(data.retryAfter || 60);
           return;
         }
 
         if (!resp.ok || !data.verified) {
+          if (modalBtnVerify) {
+            modalBtnVerify.classList.remove('is-loading');
+            modalBtnVerify.removeAttribute('disabled');
+          }
           // Record wrong attempt
           addTimestamp(OTP_WRONG_ATTEMPTS_STORAGE_KEY);
           const currentLimit = checkWrongAttemptsLimit();
@@ -634,6 +648,7 @@
 
         // ==========================================
         // OTP VERIFIED SUCCESSFULLY -> DONE!
+        // Keep modalBtnVerify disabled to prevent duplicate clicks!
         // ==========================================
         // Clear wrong attempts store
         try {

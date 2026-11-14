@@ -76,7 +76,6 @@ async function saveLeadToSupabase(leadData) {
       utm_content: leadData.utm_content || '',
       gclid: leadData.gclid || '',
       documents: leadData.documents || [],
-      lead_status: 'New Lead',
       status: 'New Lead',
       document_status: 'Pending'
     };
@@ -90,7 +89,7 @@ async function saveLeadToSupabase(leadData) {
 
     if (cleanMobile && cleanMobile.length === 10) {
       try {
-        const filterUrl = `${SUPABASE_CONFIG.url}/rest/v1/leads?or=(mobile_number.eq.${cleanMobile},mobile_number.eq.91${cleanMobile},mobile_number.eq.%2B91${cleanMobile})&select=id,lead_id,created_at,full_name,documents,form_details,lead_status,status&order=created_at.desc&limit=1`;
+        const filterUrl = `${SUPABASE_CONFIG.url}/rest/v1/leads?or=(mobile_number.eq.${cleanMobile},mobile_number.ilike.*${cleanMobile})&select=id,lead_id,created_at,full_name,documents,form_details,status&order=created_at.desc&limit=1`;
         const checkRes = await fetch(filterUrl, {
           method: 'GET',
           headers: getHeaders()
@@ -100,6 +99,8 @@ async function saveLeadToSupabase(leadData) {
           if (Array.isArray(rows) && rows.length > 0) {
             existingLead = rows[0];
           }
+        } else {
+          console.warn('Duplicate check response not ok:', checkRes.status, await checkRes.text());
         }
       } catch (checkErr) {
         console.warn('Duplicate lead check notice:', checkErr);
@@ -114,15 +115,14 @@ async function saveLeadToSupabase(leadData) {
 
       const updatePayload = {
         updated_at: new Date().toISOString(),
-        first_name: payload.first_name || existingLead.first_name,
-        last_name: payload.last_name || existingLead.last_name,
-        full_name: payload.full_name || existingLead.full_name,
-        email: payload.email,
-        monthly_salary: payload.monthly_salary,
-        employment_type: payload.employment_type,
-        pan_number: payload.pan_number,
-        city: payload.city,
-        lead_status: payload.lead_status || existingLead.lead_status || 'Qualified',
+        first_name: payload.first_name || existingLead.first_name || '',
+        last_name: payload.last_name || existingLead.last_name || '',
+        full_name: payload.full_name || existingLead.full_name || '',
+        email: payload.email || '',
+        monthly_salary: payload.monthly_salary || '',
+        employment_type: payload.employment_type || '',
+        pan_number: payload.pan_number || '',
+        city: payload.city || '',
         status: payload.status || existingLead.status || 'Qualified',
         form_details: {
           ...(existingLead.form_details || {}),
@@ -146,7 +146,11 @@ async function saveLeadToSupabase(leadData) {
 
       let updatedData = null;
       if (updateRes.ok) {
-        updatedData = await updateRes.json();
+        try {
+          updatedData = await updateRes.json();
+        } catch (e) {}
+      } else {
+        console.warn('Supabase Lead Update error:', updateRes.status, await updateRes.text());
       }
 
       return {
