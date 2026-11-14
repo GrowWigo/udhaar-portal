@@ -444,7 +444,48 @@
                 </svg>
                 <span>256-bit Bank Grade SSL Encryption &bull; Safe &amp; Secure</span>
               </div>
-            </form>
+
+            <!-- Unqualified In-Page Success State -->
+            <div class="form-success-state" id="formSuccessState" style="display: none;" role="status" aria-live="polite">
+              <div class="success-state-inner">
+                <div class="success-badge-icon" aria-hidden="true">
+                  <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                  </svg>
+                </div>
+                <h3 class="success-title">Application Submitted!</h3>
+                <p class="success-message">
+                  Thank you, <strong id="successApplicantName">Applicant</strong>. Your application has been received successfully.
+                </p>
+                
+                <div class="success-status-box">
+                  <div class="status-pill-row">
+                    <span class="status-indicator-dot"></span>
+                    <span class="status-label">Application Status:</span>
+                    <strong class="status-val">Under Review</strong>
+                  </div>
+                  <p class="status-subtext">
+                    Our loan evaluation team is currently reviewing your profile. If your application matches partner NBFC criteria, our representative will contact you via Call or WhatsApp.
+                  </p>
+                </div>
+
+                <div class="success-features-list">
+                  <div class="success-feature-item">
+                    <span class="feat-check">✓</span>
+                    <span>No physical documents required right now</span>
+                  </div>
+                  <div class="success-feature-item">
+                    <span class="feat-check">✓</span>
+                    <span>100% Free eligibility check with zero impact on credit</span>
+                  </div>
+                </div>
+
+                <button type="button" class="btn btn-primary btn-full" id="btnSuccessDone" style="margin-top: 18px;">
+                  Done
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

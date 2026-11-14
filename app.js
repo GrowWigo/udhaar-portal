@@ -147,8 +147,54 @@
   }
 
   /* ==========================================================================
-     3. SUBMISSION HANDLER & SUPABASE INTEGRATION
+     3. IN-PAGE SUCCESS STATE & SUBMISSION HANDLER
      ========================================================================== */
+  function showFormSuccessState(payload) {
+    const form = document.getElementById('leadForm');
+    const formHeader = document.querySelector('.form-header');
+    const guaranteeNote = document.querySelector('.form-guarantee-note');
+    const successState = document.getElementById('formSuccessState');
+    const nameEl = document.getElementById('successApplicantName');
+
+    if (nameEl && payload) {
+      const applicantName = (payload.firstName || payload.full_name || 'Applicant').trim();
+      nameEl.textContent = applicantName;
+    }
+
+    if (form) form.style.display = 'none';
+    if (formHeader) formHeader.style.display = 'none';
+    if (guaranteeNote) guaranteeNote.style.display = 'none';
+    if (successState) {
+      successState.style.display = 'block';
+      const card = document.getElementById('lead-form-card');
+      if (card && typeof card.scrollIntoView === 'function') {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+
+    // Google Tag Manager / Analytics dataLayer event
+    try {
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: 'lead_form_submitted',
+        lead_qualification: 'unqualified'
+      });
+    } catch (e) {}
+
+    const btnDone = document.getElementById('btnSuccessDone');
+    if (btnDone) {
+      btnDone.onclick = function () {
+        if (form) {
+          form.reset();
+          form.style.display = 'block';
+        }
+        if (formHeader) formHeader.style.display = 'block';
+        if (guaranteeNote) guaranteeNote.style.display = 'flex';
+        if (successState) successState.style.display = 'none';
+      };
+    }
+  }
+
   async function submitLead(payload) {
     const submitBtn = document.getElementById('submitBtn');
     if (submitBtn) {
@@ -169,14 +215,33 @@
       const readableSalary = payload.monthlySalary || (salaryAmount ? '₹' + salaryAmount.toLocaleString('en-IN') : '');
 
       // Strict Lead Qualification Rules:
-      // ONLY Salaried persons with monthly salary >= ₹35,000 qualify -> thank-you-qualified.html
-      // Self-Employed (any salary) OR Salary < ₹35,000 -> thank-you-standard.html
+      // ONLY Salaried persons with monthly salary >= ₹35,000 qualify -> thank-you-qualified
+      // Self-Employed (any salary) OR Salary < ₹35,000 -> Unqualified (no backend save, in-page UI confirmation)
       const empType = (payload.employmentType || '').toString().trim().toLowerCase();
       const isSalaried = empType === 'salaried';
       const isSalaryQualified = !isNaN(salaryAmount) && salaryAmount >= 35000;
       const isQualified = isSalaried && isSalaryQualified;
-      const qualificationStatus = isQualified ? 'Qualified' : 'Unqualified';
 
+      // UNQUALIFIED LEAD HANDLING:
+      // 1. Do NOT save to Supabase / Backend (prevent unused junk data)
+      // 2. Do NOT redirect to thank-you page
+      // 3. Close the OTP modal if open
+      // 4. Show on-page confirmation UI: "Application Submitted"
+      if (!isQualified) {
+        const overlay = document.getElementById('otpModalOverlay');
+        if (overlay) overlay.classList.remove('active');
+        showFormSuccessState(payload);
+
+        if (submitBtn) {
+          submitBtn.classList.remove('is-loading');
+          submitBtn.removeAttribute('disabled');
+          submitBtn.removeAttribute('aria-busy');
+        }
+        return;
+      }
+
+      // QUALIFIED LEAD HANDLING:
+      // Salaried & Salary >= ₹35,000 -> Save in Supabase & Redirect to /thank-you-qualified
       const leadRecord = {
         lead_id: leadId,
         created_at: new Date().toISOString(),
@@ -200,8 +265,8 @@
           panNumber: payload.panNumber,
           city: payload.city,
           submittedAt: payload.submittedAt,
-          isQualified: isQualified,
-          qualificationStatus: qualificationStatus
+          isQualified: true,
+          qualificationStatus: 'Qualified'
         },
         lead_source: tracking.utm_source ? 'Campaign' : 'Website - Loan Application',
         utm_source: tracking.utm_source || '',
@@ -211,8 +276,8 @@
         utm_content: tracking.utm_content || '',
         gclid: tracking.gclid || '',
         documents: [],
-        lead_status: qualificationStatus,
-        status: qualificationStatus,
+        lead_status: 'Qualified',
+        status: 'Qualified',
         document_status: 'Pending',
         is_mobile_verified: true,
         otp_verified: true,
@@ -222,7 +287,7 @@
       // Persist in Supabase
       if (window.UdhaarSupabase && typeof window.UdhaarSupabase.saveLead === 'function') {
         const supabaseResult = await window.UdhaarSupabase.saveLead(leadRecord);
-        console.info('Supabase Lead Saved:', supabaseResult);
+        console.info('Supabase Qualified Lead Saved:', supabaseResult);
       }
 
       // Store in storage for document upload correlation
@@ -234,13 +299,8 @@
         console.warn('Storage unavailable', storageErr);
       }
 
-      // Qualification routing (Clean URLs without .html):
-      // Salaried & Salary >= ₹35,000 -> /thank-you-qualified
-      // Self-Employed or Salary < ₹35,000 -> /thank-you-standard
-      const targetPage = isQualified ? '/thank-you-qualified' : '/thank-you-standard';
-
-      // Redirect with lead_id parameter
-      window.location.href = `${targetPage}?lead_id=${encodeURIComponent(leadId)}`;
+      // Redirect qualified lead with lead_id parameter to /thank-you-qualified
+      window.location.href = `/thank-you-qualified?lead_id=${encodeURIComponent(leadId)}`;
     } catch (err) {
       console.error('Submission error:', err);
       if (submitBtn) {
@@ -879,13 +939,6 @@
         return;
       }
 
-      // Check resend limit before launching OTP
-      const resendCheck = checkResendRateLimit();
-      if (!resendCheck.allowed) {
-        alert(`Security limit: Maximum 5 OTP requests allowed per 5 minutes. Please wait ${resendCheck.remainingSeconds} seconds.`);
-        return;
-      }
-
       const formattedSalary = salaryNum ? '₹' + salaryNum.toLocaleString('en-IN') : '';
       pendingFormPayload = {
         firstName: firstNameVal,
@@ -901,6 +954,39 @@
         submittedAt: new Date().toISOString(),
         tracking: attributionData
       };
+
+      // Strict Qualification Check:
+      // Qualified = Salaried AND monthly salary >= 35,000
+      const isSalaried = (employmentVal || '').toString().trim().toLowerCase() === 'salaried';
+      const isSalaryQualified = !isNaN(salaryNum) && salaryNum >= 35000;
+      const isQualified = isSalaried && isSalaryQualified;
+
+      // UNQUALIFIED LEAD HANDLING:
+      // 1. Do NOT send WhatsApp OTP (saves AiSensy API costs)
+      // 2. Do NOT save to Supabase / Backend (keeps database 100% clean with zero unused leads)
+      // 3. Do NOT redirect to thank-you-standard
+      // 4. Show in-page confirmation UI: "Application Submitted"
+      if (!isQualified) {
+        if (submitBtn) {
+          submitBtn.classList.add('is-loading');
+          submitBtn.setAttribute('disabled', 'disabled');
+        }
+        setTimeout(() => {
+          if (submitBtn) {
+            submitBtn.classList.remove('is-loading');
+            submitBtn.removeAttribute('disabled');
+          }
+          showFormSuccessState(pendingFormPayload);
+        }, 500);
+        return;
+      }
+
+      // Check resend limit before launching OTP (for Qualified Applicants)
+      const resendCheck = checkResendRateLimit();
+      if (!resendCheck.allowed) {
+        alert(`Security limit: Maximum 5 OTP requests allowed per 5 minutes. Please wait ${resendCheck.remainingSeconds} seconds.`);
+        return;
+      }
 
       // Button loading indicator
       if (submitBtn) {
